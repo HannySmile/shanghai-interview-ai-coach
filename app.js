@@ -373,6 +373,7 @@ const focusRubrics = {
 
 const state = {
   mode: "mock",
+  mockViewMode: localStorage.getItem("mockViewMode") || "listen",
   current: null,
   timerId: null,
   phase: "idle",
@@ -410,6 +411,10 @@ const state = {
 const els = {
   fileModeNotice: document.querySelector("#fileModeNotice"),
   modeButtons: document.querySelectorAll("[data-mode]"),
+  mockViewButtons: document.querySelectorAll("[data-mock-view]"),
+  mockViewField: document.querySelector("#mockViewField"),
+  categoryField: document.querySelector("#categoryField"),
+  focusField: document.querySelector("#focusField"),
   category: document.querySelector("#categorySelect"),
   focus: document.querySelector("#focusSelect"),
   think: document.querySelector("#thinkInput"),
@@ -460,6 +465,8 @@ const els = {
   scoreLabels: document.querySelectorAll(".score-strip span"),
   feedback: document.querySelector("#feedbackContent"),
   history: document.querySelector("#historyList"),
+  mockHistory: document.querySelector("#mockHistoryList"),
+  mockHistoryCount: document.querySelector("#mockHistoryCount"),
   clearHistory: document.querySelector("#clearHistoryBtn"),
   exportData: document.querySelector("#exportDataBtn"),
   importData: document.querySelector("#importDataBtn"),
@@ -471,7 +478,6 @@ const els = {
   closeHistoryDialogBtn: document.querySelector("#closeHistoryDialogBtn")
   ,
   questionBankBtn: document.querySelector("#questionBankBtn"),
-  questionBankDialog: document.querySelector("#questionBankDialog"),
   questionBankContent: document.querySelector("#questionBankContent"),
   questionBankCount: document.querySelector("#questionBankCount"),
   bankSearch: document.querySelector("#bankSearchInput"),
@@ -484,8 +490,7 @@ const els = {
   newQuestionCategory: document.querySelector("#newQuestionCategory"),
   newQuestionSource: document.querySelector("#newQuestionSource"),
   newQuestionText: document.querySelector("#newQuestionText"),
-  newQuestionCues: document.querySelector("#newQuestionCues"),
-  closeQuestionBankDialogBtn: document.querySelector("#closeQuestionBankDialogBtn")
+  newQuestionCues: document.querySelector("#newQuestionCues")
 };
 
 if (location.protocol === "file:") {
@@ -528,7 +533,7 @@ function pickQuestion() {
     clearFeedback();
     return;
   }
-  const pool = source.filter((q) => q.category === els.category.value);
+  const pool = els.category.value === "all" ? source : source.filter((q) => q.category === els.category.value);
   const candidates = pool.length ? pool : source;
   const different = candidates.filter((q) => q.text !== state.current?.text);
   const available = different.length ? different : candidates;
@@ -583,7 +588,7 @@ function loadReviewDraftForCurrent() {
 
 function getActiveQuestionSource() {
   const source = state.mode === "professional" ? professionalQuestions : state.mode === "real" ? trueQuestions : standardQuestions.concat(state.customQuestions);
-  return source.filter((q) => !isQuestionDeleted(q.text));
+  return source.map(normalizeQuestion).filter((q) => !isQuestionDeleted(q.text));
 }
 
 function getAllQuestions() {
@@ -592,7 +597,15 @@ function getAllQuestions() {
     ...trueQuestions.map((q, index) => ({ ...q, bank: "real", bankIndex: index })),
     ...professionalQuestions.map((q, index) => ({ ...q, bank: "professional", bankIndex: index })),
     ...state.customQuestions.map((q, index) => ({ ...q, bank: "custom", bankIndex: index }))
-  ].filter((q) => !isQuestionDeleted(q.text));
+  ].map(normalizeQuestion).filter((q) => !isQuestionDeleted(q.text));
+}
+
+function normalizeQuestion(q) {
+  const categoryMap = {
+    情景模拟: "人际沟通",
+    上海特色: "综合分析"
+  };
+  return { ...q, category: categoryMap[q.category] || q.category };
 }
 
 function isQuestionDeleted(text) {
@@ -600,7 +613,7 @@ function isQuestionDeleted(text) {
 }
 
 function prepareMockQuestions() {
-  const pool = trueQuestions.concat(standardQuestions).filter((q) => !isQuestionDeleted(q.text));
+  const pool = trueQuestions.concat(standardQuestions).map(normalizeQuestion).filter((q) => !isQuestionDeleted(q.text));
   const pickFromCategory = (category) => pickPreferUnpracticed(pool.filter((q) => q.category === category));
   const thirdCategory = pickRandom(["组织管理", "应急应变", "人际沟通"]);
   state.mockQuestions = [
@@ -623,23 +636,43 @@ function pickPreferUnpracticed(items) {
 function renderQuestion() {
   const q = state.current;
   els.sessionTitle.textContent = state.mode === "mock" ? `正式模拟 · 第 ${state.mockIndex + 1}/3 题` : `${modeName(state.mode)} · ${q.category}`;
-  els.questionType.textContent = q.category;
-  els.questionDifficulty.textContent = q.difficulty;
-  els.questionSource.textContent = q.source;
-  els.questionText.textContent = q.text;
-  els.questionSource.textContent = state.mode === "mock" ? "听题模式｜12分钟3题" : q.source;
-  els.questionText.textContent = q.text;
+  els.questionType.textContent = state.mode === "mock" ? "正式模拟" : q.category;
+  els.questionDifficulty.textContent = state.mode === "mock" ? "三题套卷" : q.difficulty;
+  els.questionSource.textContent = state.mode === "mock" ? `${state.mockViewMode === "read" ? "看题模式" : "听题模式"}｜12分钟3题` : q.source;
+  els.questionText.innerHTML = formatQuestionText(q);
   els.questionText.hidden = false;
-  document.querySelector(".question-band").classList.toggle("listening-mode", state.mode === "mock" && !state.mockRevealed);
+  document.querySelector(".question-band").classList.toggle("listening-mode", state.mode === "mock" && state.mockViewMode === "listen" && !state.mockRevealed);
   renderCurrentPracticeStatus();
   renderAttempts();
-  if (state.mode === "mock" && !state.mockRevealed) {
+  if (state.mode === "mock" && state.mockViewMode === "listen" && !state.mockRevealed) {
     els.questionText.textContent = `正式模拟听题中：答题结束前不显示题面。当前第 ${state.mockIndex + 1}/3 题，请点击“朗读题目”或“开始模拟”听题作答。`;
     els.cueRow.innerHTML = `<span>三题套题</span><span>总限时12分钟</span><span>题面结束后显示</span>`;
     return;
   }
-  const guide = state.mode === "professional" ? ["专业原则", "岗位落地"] : focusGuides[els.focus.value] || [];
-  els.cueRow.innerHTML = [...q.cues, ...guide.slice(0, 2)].map((item) => `<span>${item}</span>`).join("");
+  const guide = state.mode === "professional" ? ["专业原则", "岗位落地"] : [];
+  els.cueRow.innerHTML = [...(q.cues || []), ...guide.slice(0, 2)].map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+}
+
+function formatQuestionText(q) {
+  if (state.mode === "mock") {
+    const list = state.mockQuestions.length ? state.mockQuestions : [q].filter(Boolean);
+    return `<div class="mock-question-list">${list.map((item, index) => `
+      <article class="mock-question-item">
+        <strong>第${index + 1}题</strong>
+        <p>${escapeHtml(item.text)}</p>
+      </article>
+    `).join("")}</div>`;
+  }
+  return `<p>${escapeHtml(q.text)}</p>`;
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function renderCurrentPracticeStatus() {
@@ -706,21 +739,27 @@ function setMode(mode) {
   state.mode = mode;
   document.body.dataset.mode = mode;
   els.modeButtons.forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
+  els.mockViewButtons.forEach((button) => button.classList.toggle("active", button.dataset.mockView === state.mockViewMode));
   const isBank = mode === "bank";
   els.topbar.hidden = isBank;
   els.questionBand.hidden = isBank;
   els.trainingGrid.hidden = isBank;
   els.questionBankPage.hidden = !isBank;
+  els.mockViewField.hidden = mode !== "mock";
+  els.categoryField.hidden = mode === "mock" || isBank;
+  els.focusField.hidden = true;
   if (isBank) {
     resetSession();
     renderQuestionBank();
     return;
   }
-  els.think.value = mode === "practice" ? 30 : 60;
+  els.think.value = 60;
   els.answer.value = mode === "mock" ? 720 : 180;
   if (mode === "professional") els.category.value = "专业题";
+  else if (mode === "practice" && els.category.value === "专业题") els.category.value = "all";
   els.category.disabled = mode === "mock" || mode === "professional";
-  els.focus.disabled = mode === "mock";
+  els.focus.value = "完整作答";
+  els.focus.disabled = true;
   els.think.disabled = mode === "mock";
   els.answer.disabled = mode === "mock";
   els.newQuestionBtn.textContent = mode === "mock" ? "换一套" : "换一题";
@@ -729,8 +768,20 @@ function setMode(mode) {
   pickQuestion();
 }
 
+function setMockViewMode(viewMode) {
+  persistReviewNotes({ allowEmpty: true });
+  state.mockViewMode = viewMode;
+  localStorage.setItem("mockViewMode", viewMode);
+  els.mockViewButtons.forEach((button) => button.classList.toggle("active", button.dataset.mockView === viewMode));
+  if (state.mode === "mock") {
+    resetSession();
+    pickQuestion();
+  }
+}
+
 function updateStartButtonText() {
   els.startBtn.textContent = state.mode === "mock" ? "开始模拟" : state.mode === "real" ? "开始真题" : state.mode === "professional" ? "开始专业题" : "开始专项";
+  els.answerNowBtn.textContent = "开始答题";
 }
 
 function formatTime(seconds) {
@@ -762,7 +813,7 @@ function updateTimer() {
   els.timerDisplay.textContent = formatTime(state.remaining);
   const used = state.total ? ((state.total - state.remaining) / state.total) * 100 : 0;
   els.phaseProgress.style.width = `${Math.min(100, Math.max(0, used))}%`;
-  els.phaseProgress.style.background = state.phase === "answer" ? "var(--red)" : "var(--blue)";
+  els.phaseProgress.style.background = state.phase === "answer" || state.phase === "mock-answer" ? "var(--red)" : "var(--blue)";
 }
 
 async function startSession() {
@@ -798,20 +849,28 @@ async function startMockSession() {
   prepareMockQuestions();
   state.mockIndex = 0;
   state.current = state.mockQuestions[0];
-  state.mockRevealed = false;
+  state.mockRevealed = state.mockViewMode === "read";
   state.mockTranscriptParts = ["", "", ""];
-  state.phase = "mock-read";
+  state.phase = state.mockViewMode === "read" ? "mock-answer" : "mock-read";
   state.remaining = 720;
   state.total = 720;
-  els.finishBtn.disabled = true;
+  els.finishBtn.disabled = state.mockViewMode !== "read";
   els.answerNowBtn.disabled = false;
-  els.recordStatus.textContent = "正式模拟开始，听题后进入思考";
+  els.finishBtn.textContent = state.mockViewMode === "read" ? "结束模拟" : "结束答题";
+  els.recordStatus.textContent = state.mockViewMode === "read" ? "看题模拟开始，计时和录音已启动" : "正式模拟开始，听题后进入思考";
   renderQuestion();
   loadReviewDraftForCurrent();
   renderMockTranscript();
   clearFeedback();
   await startRecording();
   startMockTotalTimer();
+  if (state.mockViewMode === "read") {
+    state.answerStartedAt = Date.now();
+    els.recordDot.classList.add("live");
+    startRecognition();
+    updateTimer();
+    return;
+  }
   speakQuestion();
   state.phase = "mock-think";
   updateTimer();
@@ -850,6 +909,10 @@ function beginMockAnswer() {
 
 function finishMockQuestion() {
   if (state.mode !== "mock") return;
+  if (state.mockViewMode === "read") {
+    finishMockSession();
+    return;
+  }
   if (state.recognition) state.recognition.stop();
   clearTimeout(state.mockThinkId);
   if (state.mockIndex < state.mockQuestions.length - 1 && state.remaining > 0) {
@@ -1182,7 +1245,7 @@ function buildMockSummaryQuestion() {
   return {
     category: "正式模拟",
     difficulty: "三题套卷",
-    source: "听题模式｜总限时12分钟",
+    source: `${state.mockViewMode === "read" ? "看题模式" : "听题模式"}｜总限时12分钟`,
     text: list.map((q, index) => `第${index + 1}题：${q.text}`).join("\n"),
     cues: ["综合分析", "岗位认知", "组织/应急/人际"],
     points: list.flatMap((q) => q.points || []).slice(0, 8)
@@ -1646,12 +1709,13 @@ function saveHistory(analysis) {
   state.history = [item, ...state.history].slice(0, 20);
   localStorage.setItem("interviewHistory", JSON.stringify(state.history));
   renderHistory();
+  renderMockHistory();
   renderCurrentPracticeStatus();
 }
 
 function renderHistory() {
   if (!state.history.length) {
-    els.history.innerHTML = `<div class="history-item"><strong>暂无记录</strong><p>完成一次答题后，这里会记录题型、分数和训练重点。</p></div>`;
+    els.history.innerHTML = `<div class="history-item"><strong>暂无记录</strong><p>完成一次答题后，这里会记录题型、分数、用时和答案。</p></div>`;
     return;
   }
   els.history.innerHTML = state.history.map((item) => `
@@ -1661,6 +1725,19 @@ function renderHistory() {
       <span>${item.time} · ${modeName(item.mode)} · ${item.focus}</span>
     </button>
   `).join("");
+}
+
+function renderMockHistory() {
+  if (!els.mockHistory) return;
+  const mockItems = state.history.filter((item) => item.mode === "mock");
+  els.mockHistoryCount.textContent = mockItems.length ? `${mockItems.length} 条` : "暂无";
+  els.mockHistory.innerHTML = mockItems.map((item) => `
+    <button class="history-button" type="button" data-history-id="${item.id}">
+      <strong>${item.score} 分 · ${formatTime(item.actualSeconds || item.answerSeconds || 0)}</strong>
+      <span>${(item.childQuestions || []).map((child, index) => `第${index + 1}题：${child.question}`).join(" ") || item.question}</span>
+      <span>${item.time} · ${item.source || "正式模拟"}</span>
+    </button>
+  `).join("") || `<div class="history-item"><strong>暂无记录</strong><p>完成正式模拟后，这里会保存题目、用时、答案、分数和录音。</p></div>`;
 }
 
 function modeName(mode) {
@@ -1683,7 +1760,7 @@ function openHistoryDetail(id) {
         <span>${item.difficulty || "训练"}</span>
         <span>${item.source || modeName(item.mode)}</span>
       </div>
-      <p id="questionText">${item.question}</p>
+      <p class="history-question-text">${item.question}</p>
       <div class="cue-row">${cueHtml}</div>
     </section>
     <section class="training-grid">
@@ -1735,7 +1812,7 @@ function renderSavedFeedback(item) {
   return `
     <div>
       <h3>训练信息</h3>
-      <p>${item.time}｜${modeName(item.mode)}｜训练重点：${item.focus}</p>
+      <p>${item.time}｜${modeName(item.mode)}${item.actualSeconds ? `｜用时：${formatTime(item.actualSeconds)}` : ""}</p>
     </div>
     <div>
       <h3>我的复盘</h3>
@@ -2056,7 +2133,8 @@ function importDataBackup(file) {
 
 function openQuestionBank() {
   renderQuestionBank();
-  els.questionBankDialog.showModal();
+  if (els.questionBankDialog) els.questionBankDialog.showModal();
+  else setMode("bank");
 }
 
 function loadQuestionFromBank(index) {
@@ -2082,10 +2160,11 @@ function loadQuestionFromBank(index) {
   renderQuestion();
   loadReviewDraftForCurrent();
   clearFeedback();
-  if (els.questionBankDialog.open) els.questionBankDialog.close();
+  if (els.questionBankDialog?.open) els.questionBankDialog.close();
 }
 
 els.modeButtons.forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
+els.mockViewButtons.forEach((button) => button.addEventListener("click", () => setMockViewMode(button.dataset.mockView)));
 els.category.addEventListener("change", pickQuestion);
 els.focus.addEventListener("change", () => {
   renderQuestion();
@@ -2117,6 +2196,7 @@ els.clearHistory.addEventListener("click", () => {
   state.history = [];
   localStorage.removeItem("interviewHistory");
   renderHistory();
+  renderMockHistory();
   renderSkills();
 });
 els.exportData.addEventListener("click", exportDataBackup);
@@ -2126,6 +2206,10 @@ els.importDataInput.addEventListener("change", (event) => {
   event.target.value = "";
 });
 els.history.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-history-id]");
+  if (button) openHistoryDetail(button.dataset.historyId);
+});
+els.mockHistory.addEventListener("click", (event) => {
   const button = event.target.closest("[data-history-id]");
   if (button) openHistoryDetail(button.dataset.historyId);
 });
@@ -2155,9 +2239,8 @@ els.questionBankContent.addEventListener("click", (event) => {
   const deleteButton = event.target.closest("[data-question-delete-index]");
   if (deleteButton) deleteQuestionFromBank(Number(deleteButton.dataset.questionDeleteIndex));
 });
-els.closeQuestionBankDialogBtn.addEventListener("click", () => els.questionBankDialog.close());
-
 setMode("mock");
 renderHistory();
+renderMockHistory();
 renderSkills();
 updateTimer();

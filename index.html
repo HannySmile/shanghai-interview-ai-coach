@@ -27,22 +27,29 @@
             <button class="segment" data-mode="bank" type="button">全部题目</button>
           </div>
 
-          <label class="field">
+          <div class="field" id="mockViewField">
+            <span>模拟方式</span>
+            <div class="segmented mock-view-toggle" role="group" aria-label="正式模拟方式">
+              <button class="segment active" data-mock-view="listen" type="button">听题模式</button>
+              <button class="segment" data-mock-view="read" type="button">看题模式</button>
+            </div>
+          </div>
+
+          <label class="field" id="categoryField">
             <span>题型</span>
             <select id="categorySelect">
+              <option value="all">全部题型</option>
               <option value="综合分析">综合分析</option>
               <option value="组织管理">组织管理</option>
               <option value="应急应变">应急应变</option>
               <option value="人际沟通">人际沟通</option>
               <option value="岗位匹配">岗位匹配</option>
-              <option value="情景模拟">情景模拟</option>
-              <option value="上海特色">上海特色</option>
               <option value="专业题">专业题</option>
             </select>
           </label>
 
-          <label class="field">
-            <span>训练重点</span>
+          <label class="field" id="focusField" hidden>
+            <span></span>
             <select id="focusSelect">
               <option value="完整作答">完整作答</option>
               <option value="审题破题">审题破题</option>
@@ -92,6 +99,14 @@
 
         <section class="panel compact">
           <div class="history-head slim">
+            <h2>模拟练习记录</h2>
+            <span id="mockHistoryCount">暂无</span>
+          </div>
+          <div id="mockHistoryList" class="sidebar-history"></div>
+        </section>
+
+        <section class="panel compact">
+          <div class="history-head slim">
             <h2>训练记录</h2>
             <button id="clearHistoryBtn" class="ghost" type="button">清空</button>
           </div>
@@ -137,8 +152,6 @@
                     <option value="应急应变">应急应变</option>
                     <option value="人际沟通">人际沟通</option>
                     <option value="岗位匹配">岗位匹配</option>
-                    <option value="情景模拟">情景模拟</option>
-                    <option value="上海特色">上海特色</option>
                     <option value="专业题">专业题</option>
                   </select>
                 </label>
@@ -153,7 +166,7 @@
               </label>
               <label class="transcript-field">
                 <span>标签/考察点</span>
-                <input id="newQuestionCues" type="text" placeholder="用空格或逗号分隔，例如：观点明确 辩证分析 上海特色" />
+                <input id="newQuestionCues" type="text" placeholder="用空格或逗号分隔，例如：观点明确 辩证分析 联系实际" />
               </label>
               <button class="primary" type="submit">添加到题库</button>
             </form>
@@ -210,7 +223,7 @@
             <span id="questionDifficulty">标准</span>
             <span id="questionSource">上海治理场景</span>
           </div>
-          <p id="questionText"></p>
+          <div id="questionText"></div>
           <div class="cue-row" id="cueRow"></div>
           <div class="current-status-panel" aria-label="当前题目练习状态">
             <span id="currentPracticeStatus">练习状态：未练习</span>
@@ -235,7 +248,7 @@
 
             <div class="control-grid">
               <button id="startBtn" class="primary" type="button">开始模拟</button>
-              <button id="answerNowBtn" class="secondary" type="button">提前答题</button>
+              <button id="answerNowBtn" class="secondary" type="button">开始答题</button>
               <button id="finishBtn" class="danger" type="button" disabled>结束答题</button>
               <button id="resetBtn" class="secondary" type="button">重置</button>
             </div>
@@ -323,58 +336,6 @@
         <button id="closeHistoryDialogBtn" class="ghost" type="button">关闭</button>
       </div>
       <div id="historyDialogContent" class="dialog-content"></div>
-    </dialog>
-
-    <dialog id="questionBankDialog" class="history-dialog">
-      <div class="dialog-head">
-        <div>
-          <p class="eyebrow">题库总览</p>
-          <h2>全部训练题目</h2>
-        </div>
-        <button id="closeQuestionBankDialogBtn" class="ghost" type="button">关闭</button>
-      </div>
-      <div class="bank-filters" aria-label="题库筛选">
-        <label>
-          <span>关键词</span>
-          <input id="bankSearchInput" type="search" placeholder="搜索题目、来源、标签" />
-        </label>
-        <label>
-          <span>来源</span>
-          <select id="bankModeFilter">
-            <option value="all">全部来源</option>
-            <option value="standard">模拟/专项</option>
-            <option value="real">真题训练</option>
-            <option value="professional">专业题</option>
-          </select>
-        </label>
-        <label>
-          <span>题型</span>
-          <select id="bankCategoryFilter">
-            <option value="all">全部题型</option>
-          </select>
-        </label>
-        <label>
-          <span>练习状态</span>
-          <select id="bankPracticeFilter">
-            <option value="all">全部状态</option>
-            <option value="done">已练习</option>
-            <option value="todo">未练习</option>
-          </select>
-        </label>
-        <label>
-          <span>上次分数</span>
-          <select id="bankScoreFilter">
-            <option value="all">全部分数</option>
-            <option value="none">暂无分数</option>
-            <option value="lt60">60 分以下</option>
-            <option value="60-79">60-79 分</option>
-            <option value="gte80">80 分以上</option>
-          </select>
-        </label>
-        <button id="bankResetBtn" class="secondary" type="button">重置</button>
-      </div>
-      <p id="questionBankCount" class="bank-count"></p>
-      <div id="questionBankContent" class="dialog-content"></div>
     </dialog>
 
     <script src="./word-questions.js"></script>

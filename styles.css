@@ -10,9 +10,9 @@
   --blue: #2563eb;
   --red: #c24135;
   --amber: #b7791f;
-  --shadow: 0 16px 50px rgba(20, 31, 28, 0.12);
+  --shadow: 0 12px 34px rgba(20, 31, 28, 0.1);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 * {
@@ -41,14 +41,14 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   min-height: 100vh;
 }
 
 .sidebar {
   border-right: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.74);
-  padding: 28px 22px;
+  padding: 24px 20px;
 }
 
 .brand {
@@ -101,8 +101,8 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  padding: 18px;
-  margin-bottom: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
   box-shadow: 0 8px 24px rgba(20, 31, 28, 0.05);
 }
 
@@ -126,10 +126,16 @@ button {
 }
 
 .segment {
-  min-height: 38px;
+  min-height: 36px;
   border-radius: 6px;
   color: var(--muted);
   background: transparent;
+  font-size: 13px;
+}
+
+.mock-view-toggle {
+  grid-template-columns: repeat(2, 1fr);
+  margin-bottom: 0;
 }
 
 .segment.active {
@@ -163,7 +169,7 @@ textarea {
 
 select,
 input {
-  min-height: 42px;
+  min-height: 40px;
   padding: 0 12px;
 }
 
@@ -236,7 +242,7 @@ textarea:focus {
 }
 
 .workspace {
-  padding: 28px;
+  padding: 24px 28px;
 }
 
 .notice {
@@ -274,7 +280,8 @@ textarea:focus {
 
 .topbar h2,
 .feedback-header h2 {
-  font-size: 21px;
+  font-size: 20px;
+  line-height: 1.35;
 }
 
 .top-actions {
@@ -287,7 +294,7 @@ textarea:focus {
 .danger,
 .ghost,
 .icon-button {
-  min-height: 42px;
+  min-height: 40px;
   border-radius: 8px;
   padding: 0 16px;
   font-weight: 800;
@@ -343,8 +350,8 @@ textarea:focus {
 }
 
 .question-band {
-  margin: 22px 0;
-  padding: 24px;
+  margin: 18px 0;
+  padding: 22px;
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
@@ -384,7 +391,7 @@ textarea:focus {
 
 .question-band.listening-mode #questionText {
   color: var(--muted);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
 }
 
@@ -446,10 +453,37 @@ textarea:focus {
 }
 
 #questionText {
-  margin: 18px 0;
-  font-size: 21px;
-  line-height: 1.55;
-  font-weight: 750;
+  margin: 16px 0;
+  font-size: 17px;
+  line-height: 1.65;
+  font-weight: 720;
+}
+
+#questionText > p {
+  margin: 0;
+}
+
+.mock-question-list {
+  display: grid;
+  gap: 12px;
+}
+
+.mock-question-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fbfcfa;
+}
+
+.mock-question-item strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--accent-strong);
+  font-size: 13px;
+}
+
+.mock-question-item p {
+  margin: 0;
 }
 
 .cue-row span {
@@ -487,7 +521,7 @@ textarea:focus {
 
 .timer-card strong {
   display: block;
-  font-size: 50px;
+  font-size: 44px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -965,11 +999,11 @@ audio {
   }
 
   #questionText {
-    font-size: 19px;
+    font-size: 16px;
   }
 
   .timer-card strong {
-    font-size: 46px;
+    font-size: 40px;
   }
 
   .score-strip,
