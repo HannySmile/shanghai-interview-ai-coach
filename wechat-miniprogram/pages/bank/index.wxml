@@ -1,0 +1,30 @@
+<view class="page">
+  <view class="card">
+    <view class="eyebrow">题库总览</view>
+    <view class="title">全部训练题目</view>
+    <view class="filters">
+      <input value="{{keyword}}" bindinput="onKeywordInput" placeholder="搜索题目、来源、标签" />
+      <picker mode="selector" range="{{modeOptions}}" value="{{modeIndex}}" bindchange="onModeChange">
+        <view class="picker">{{modeOptions[modeIndex]}}</view>
+      </picker>
+      <picker mode="selector" range="{{categoryOptions}}" value="{{categoryIndex}}" bindchange="onCategoryChange">
+        <view class="picker">{{categoryOptions[categoryIndex]}}</view>
+      </picker>
+      <picker mode="selector" range="{{statusOptions}}" value="{{statusIndex}}" bindchange="onStatusChange">
+        <view class="picker">{{statusOptions[statusIndex]}}</view>
+      </picker>
+    </view>
+    <view class="count">共 {{questions.length}} 道题，当前显示 {{filtered.length}} 道。</view>
+  </view>
+
+  <view wx:for="{{filtered}}" wx:key="id" class="card question-item" data-id="{{item.id}}" bindtap="openQuestion">
+    <view class="tag-row">
+      <text class="tag">{{item.mode}}</text>
+      <text class="tag">{{item.category}}</text>
+      <text class="tag {{item.status.done ? 'blue' : ''}}">{{item.status.done ? "已练习" : "未练习"}}</text>
+      <text class="tag">上次 {{item.status.score || "--"}} 分</text>
+    </view>
+    <view class="question-title">{{item.text}}</view>
+    <view class="cue-line">{{item.cuesText}}</view>
+  </view>
+</view>

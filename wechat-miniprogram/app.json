@@ -1,0 +1,39 @@
+{
+  "pages": [
+    "pages/practice/index",
+    "pages/bank/index",
+    "pages/records/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "事业编面试陪练",
+    "navigationBarBackgroundColor": "#0f766e",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f6f2"
+  },
+  "tabBar": {
+    "color": "#667069",
+    "selectedColor": "#0f766e",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/practice/index",
+        "text": "练习"
+      },
+      {
+        "pagePath": "pages/bank/index",
+        "text": "题库"
+      },
+      {
+        "pagePath": "pages/records/index",
+        "text": "记录"
+      }
+    ]
+  },
+  "permission": {
+    "scope.record": {
+      "desc": "用于录制你的面试答题音频，生成练习记录。"
+    }
+  },
+  "sitemapLocation": "sitemap.json"
+}

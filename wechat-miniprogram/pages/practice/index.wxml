@@ -1,0 +1,75 @@
+<view class="page">
+  <view class="card question-card">
+    <view class="eyebrow">今日训练</view>
+    <view class="title">{{question.mode}} · {{question.category}}</view>
+    <view class="tag-row">
+      <text class="tag">{{question.difficulty}}</text>
+      <text class="tag">{{question.source}}</text>
+    </view>
+    <view class="question-text">{{question.text}}</view>
+    <view class="tag-row">
+      <text wx:for="{{question.cues}}" wx:key="*this" class="tag blue">{{item}}</text>
+    </view>
+    <view class="status-line">练习状态：{{status.done ? "已练习" : "未练习"}}，上次 {{status.score || "--"}} 分</view>
+    <view class="button-row">
+      <button class="secondary" bindtap="markDone">标为已练</button>
+      <button class="ghost" bindtap="markTodo">标为未练</button>
+      <button class="secondary" bindtap="nextQuestion">换一题</button>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="timer">{{timerText}}</view>
+    <view class="button-grid">
+      <button class="primary" bindtap="startRecord" disabled="{{recording}}">开始答题</button>
+      <button class="danger" bindtap="stopRecord" disabled="{{!recording}}">结束答题</button>
+      <button class="secondary" bindtap="scoreAnswer">立即评分</button>
+      <button class="ghost" bindtap="resetAnswer">重置</button>
+    </view>
+    <view class="record-state">{{recording ? "录音中" : "未录音"}}</view>
+  </view>
+
+  <view class="card">
+    <view class="section-head">
+      <view class="subtitle">作答记录</view>
+      <text>{{attempts.length ? attempts.length + " 次" : "暂无记录"}}</text>
+    </view>
+    <view wx:if="{{!attempts.length}}" class="empty">每次结束答题后，会在这里保存对应录音和文字稿。</view>
+    <view wx:for="{{attempts}}" wx:key="id" class="attempt">
+      <view class="section-head">
+        <view class="subtitle">第 {{item.name}} 次录音</view>
+        <button class="ghost small" data-id="{{item.id}}" bindtap="removeAttempt">删除</button>
+      </view>
+      <audio src="{{item.audioPath}}" controls></audio>
+      <view class="attempt-text">{{item.transcript || "未填写文字稿"}}</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="subtitle">回答文字稿</view>
+    <textarea value="{{transcript}}" bindinput="onTranscriptInput" placeholder="可粘贴或手动整理本次回答。小程序版暂不内置语音转文字。" />
+  </view>
+
+  <view class="card">
+    <view class="section-head">
+      <view>
+        <view class="eyebrow">AI 教练复盘</view>
+        <view class="score-title">本次建议分：{{score.total || "--"}}/100</view>
+      </view>
+    </view>
+    <view class="score-grid">
+      <view><text>审题</text><strong>{{score.review || "--"}}</strong></view>
+      <view><text>结构</text><strong>{{score.structure || "--"}}</strong></view>
+      <view><text>内容</text><strong>{{score.content || "--"}}</strong></view>
+      <view><text>表达</text><strong>{{score.expression || "--"}}</strong></view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="section-head">
+      <view class="subtitle">复盘板块</view>
+      <text>自动保存</text>
+    </view>
+    <textarea value="{{review}}" bindinput="onReviewInput" placeholder="把点评后的思路、框架、开头、主体和结尾整理到这里。" />
+  </view>
+</view>

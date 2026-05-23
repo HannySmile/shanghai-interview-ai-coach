@@ -1,0 +1,18 @@
+<view class="page">
+  <view class="card">
+    <view class="eyebrow">训练记录</view>
+    <view class="title">已保存作答</view>
+    <view class="count">{{records.length ? "共 " + records.length + " 条记录" : "暂无记录"}}</view>
+  </view>
+
+  <view wx:for="{{records}}" wx:key="key" class="card record-item">
+    <view class="tag-row">
+      <text class="tag">{{item.question.mode}}</text>
+      <text class="tag">{{item.question.category}}</text>
+      <text class="tag">第 {{item.attempt.name}} 次</text>
+    </view>
+    <view class="question-title">{{item.question.text}}</view>
+    <audio src="{{item.attempt.audioPath}}" controls></audio>
+    <view class="attempt-text">{{item.attempt.transcript || "未填写文字稿"}}</view>
+  </view>
+</view>

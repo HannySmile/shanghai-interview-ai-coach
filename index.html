@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>上海事业编面试 AI 陪练</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="训练设置">
+        <div class="brand">
+          <div class="brand-mark">沪</div>
+          <div>
+            <h1>事业编面试陪练</h1>
+            <p>上海结构化面试训练台</p>
+          </div>
+        </div>
+
+        <section class="panel">
+          <h2>训练模式</h2>
+          <div class="segmented" role="group" aria-label="训练模式">
+            <button class="segment active" data-mode="mock" type="button">正式模拟</button>
+            <button class="segment" data-mode="practice" type="button">专项训练</button>
+            <button class="segment" data-mode="real" type="button">真题训练</button>
+            <button class="segment" data-mode="professional" type="button">专业题</button>
+            <button class="segment" data-mode="bank" type="button">全部题目</button>
+          </div>
+
+          <label class="field">
+            <span>题型</span>
+            <select id="categorySelect">
+              <option value="综合分析">综合分析</option>
+              <option value="组织管理">组织管理</option>
+              <option value="应急应变">应急应变</option>
+              <option value="人际沟通">人际沟通</option>
+              <option value="岗位匹配">岗位匹配</option>
+              <option value="情景模拟">情景模拟</option>
+              <option value="上海特色">上海特色</option>
+              <option value="专业题">专业题</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>训练重点</span>
+            <select id="focusSelect">
+              <option value="完整作答">完整作答</option>
+              <option value="审题破题">审题破题</option>
+              <option value="答题框架">答题框架</option>
+              <option value="内容要点">内容要点</option>
+              <option value="表达逻辑">表达逻辑</option>
+              <option value="开头结尾">开头结尾</option>
+            </select>
+          </label>
+
+          <div class="time-grid">
+            <label class="field">
+              <span>思考</span>
+              <input id="thinkInput" type="number" min="10" max="180" step="5" value="60" />
+            </label>
+            <label class="field">
+              <span>答题</span>
+              <input id="answerInput" type="number" min="30" max="420" step="15" value="180" />
+            </label>
+          </div>
+
+          <label class="toggle">
+            <input id="silentToggle" type="checkbox" checked />
+            <span>答题期间 AI 静默，不因停顿打断</span>
+          </label>
+        </section>
+
+        <section class="panel compact">
+          <h2>能力画像</h2>
+          <div class="skill-list" id="skillList"></div>
+        </section>
+
+        <section class="panel compact">
+          <h2>题库总览</h2>
+          <button id="questionBankBtn" class="secondary wide" type="button">查看全部题目</button>
+        </section>
+
+        <section class="panel compact">
+          <h2>数据备份</h2>
+          <div class="backup-grid">
+            <button id="exportDataBtn" class="secondary" type="button">导出数据</button>
+            <button id="importDataBtn" class="ghost" type="button">导入数据</button>
+          </div>
+          <input id="importDataInput" type="file" accept="application/json,.json" hidden />
+          <p class="helper-text">建议每次重要练习后导出一次，录音、文字稿、分数、题目状态和复盘都会一起保存。</p>
+        </section>
+
+        <section class="panel compact">
+          <div class="history-head slim">
+            <h2>训练记录</h2>
+            <button id="clearHistoryBtn" class="ghost" type="button">清空</button>
+          </div>
+          <div id="historyList" class="sidebar-history"></div>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <div id="fileModeNotice" class="notice" hidden>
+          当前是直接打开 HTML 的文件模式，录音和语音识别可能不可用。请使用
+          <a href="http://127.0.0.1:4199/">http://127.0.0.1:4199/</a>
+          打开可录音版本。
+        </div>
+
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">今日训练</p>
+            <h2 id="sessionTitle">正式模拟 · 综合分析</h2>
+          </div>
+          <div class="top-actions">
+            <button id="speakBtn" class="icon-button" type="button" title="朗读题目" aria-label="朗读题目">▶</button>
+            <button id="newQuestionBtn" class="secondary" type="button">换一题</button>
+          </div>
+        </header>
+
+        <section id="questionBankPage" class="question-bank-page" hidden>
+          <div class="page-panel">
+            <div class="feedback-header">
+              <div>
+                <p class="eyebrow">题库管理</p>
+                <h2>全部训练题目</h2>
+              </div>
+            </div>
+
+            <form id="addQuestionForm" class="add-question-form">
+              <h3>新增题目</h3>
+              <div class="bank-filters">
+                <label>
+                  <span>题型</span>
+                  <select id="newQuestionCategory">
+                    <option value="综合分析">综合分析</option>
+                    <option value="组织管理">组织管理</option>
+                    <option value="应急应变">应急应变</option>
+                    <option value="人际沟通">人际沟通</option>
+                    <option value="岗位匹配">岗位匹配</option>
+                    <option value="情景模拟">情景模拟</option>
+                    <option value="上海特色">上海特色</option>
+                    <option value="专业题">专业题</option>
+                  </select>
+                </label>
+                <label>
+                  <span>难度/来源</span>
+                  <input id="newQuestionSource" type="text" placeholder="例如：自建题 / 2025真题" />
+                </label>
+              </div>
+              <label class="transcript-field">
+                <span>题目内容</span>
+                <textarea id="newQuestionText" placeholder="输入题干"></textarea>
+              </label>
+              <label class="transcript-field">
+                <span>标签/考察点</span>
+                <input id="newQuestionCues" type="text" placeholder="用空格或逗号分隔，例如：观点明确 辩证分析 上海特色" />
+              </label>
+              <button class="primary" type="submit">添加到题库</button>
+            </form>
+
+            <div class="bank-filters" aria-label="题库筛选">
+              <label>
+                <span>关键词</span>
+                <input id="bankSearchInput" type="search" placeholder="搜索题目、来源、标签" />
+              </label>
+              <label>
+                <span>来源</span>
+                <select id="bankModeFilter">
+                  <option value="all">全部来源</option>
+                  <option value="standard">模拟/专项</option>
+                  <option value="real">真题训练</option>
+                  <option value="professional">专业题</option>
+                  <option value="custom">自建题</option>
+                </select>
+              </label>
+              <label>
+                <span>题型</span>
+                <select id="bankCategoryFilter">
+                  <option value="all">全部题型</option>
+                </select>
+              </label>
+              <label>
+                <span>练习状态</span>
+                <select id="bankPracticeFilter">
+                  <option value="all">全部状态</option>
+                  <option value="done">已练习</option>
+                  <option value="todo">未练习</option>
+                </select>
+              </label>
+              <label>
+                <span>上次分数</span>
+                <select id="bankScoreFilter">
+                  <option value="all">全部分数</option>
+                  <option value="none">暂无分数</option>
+                  <option value="lt60">60 分以下</option>
+                  <option value="60-79">60-79 分</option>
+                  <option value="gte80">80 分以上</option>
+                </select>
+              </label>
+              <button id="bankResetBtn" class="secondary" type="button">重置</button>
+            </div>
+            <p id="questionBankCount" class="bank-count"></p>
+            <div id="questionBankContent" class="dialog-content"></div>
+          </div>
+        </section>
+
+        <section class="question-band">
+          <div class="question-meta">
+            <span id="questionType">综合分析</span>
+            <span id="questionDifficulty">标准</span>
+            <span id="questionSource">上海治理场景</span>
+          </div>
+          <p id="questionText"></p>
+          <div class="cue-row" id="cueRow"></div>
+          <div class="current-status-panel" aria-label="当前题目练习状态">
+            <span id="currentPracticeStatus">练习状态：未练习</span>
+            <div>
+              <button id="markCurrentDoneBtn" class="secondary" type="button">标为已练</button>
+              <button id="markCurrentTodoBtn" class="ghost" type="button">标为未练</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="training-grid">
+          <div class="coach-panel">
+            <div class="timer-card" id="timerCard">
+              <div>
+                <p id="phaseLabel">准备开始</p>
+                <strong id="timerDisplay">00:00</strong>
+              </div>
+              <div class="phase-track" aria-hidden="true">
+                <span id="phaseProgress"></span>
+              </div>
+            </div>
+
+            <div class="control-grid">
+              <button id="startBtn" class="primary" type="button">开始模拟</button>
+              <button id="answerNowBtn" class="secondary" type="button">提前答题</button>
+              <button id="finishBtn" class="danger" type="button" disabled>结束答题</button>
+              <button id="resetBtn" class="secondary" type="button">重置</button>
+            </div>
+
+            <div class="recording-box">
+              <div class="recording-state">
+                <span class="dot" id="recordDot"></span>
+                <span id="recordStatus">未录音</span>
+              </div>
+              <button id="micTestBtn" class="secondary" type="button">测试麦克风权限</button>
+              <audio id="audioPlayback" controls></audio>
+            </div>
+
+            <label class="transcript-field">
+              <span>回答文字稿</span>
+              <textarea id="transcriptInput" placeholder="可直接粘贴你的回答；如果浏览器支持语音识别，开始答题后会自动尝试转写。"></textarea>
+            </label>
+
+            <section class="attempts-panel">
+              <div class="history-head slim">
+                <h2>作答记录</h2>
+                <span id="attemptCount">暂无记录</span>
+              </div>
+              <div id="attemptList" class="attempt-list"></div>
+            </section>
+
+          </div>
+
+          <div class="feedback-panel">
+            <div class="feedback-header">
+              <div>
+                <p class="eyebrow">AI 教练复盘</p>
+                <h2 id="scoreTitle">完成一次答题后生成点评</h2>
+              </div>
+              <div class="top-actions">
+                <button id="chatgptPromptBtn" class="secondary" type="button">复制给 ChatGPT</button>
+                <button id="reviewBtn" class="secondary" type="button">立即点评</button>
+              </div>
+            </div>
+
+            <div class="score-strip">
+              <div>
+                <span>结构</span>
+                <strong id="structureScore">--</strong>
+              </div>
+              <div>
+                <span>内容</span>
+                <strong id="contentScore">--</strong>
+              </div>
+              <div>
+                <span>表达</span>
+                <strong id="expressionScore">--</strong>
+              </div>
+              <div>
+                <span>时间</span>
+                <strong id="timeScore">--</strong>
+              </div>
+            </div>
+
+            <div id="feedbackContent" class="feedback-content">
+              <p>建议先点击“朗读题目”，按正式流程思考和答题。复盘会指出审题、框架、内容、表达和时间控制问题，并给你下一轮训练任务。</p>
+            </div>
+
+            <section class="review-notes-panel">
+              <div class="history-head slim">
+                <h2>复盘板块</h2>
+                <button id="saveReviewNotesBtn" class="ghost" type="button">自动保存</button>
+              </div>
+              <label class="transcript-field">
+                <span>我的复盘</span>
+                <textarea id="noteReview" placeholder="把点评后的思路、框架、开头、主体和结尾整理到这里。"></textarea>
+              </label>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="historyDialog" class="history-dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">训练记录详情</p>
+          <h2 id="historyDialogTitle">记录</h2>
+        </div>
+        <button id="closeHistoryDialogBtn" class="ghost" type="button">关闭</button>
+      </div>
+      <div id="historyDialogContent" class="dialog-content"></div>
+    </dialog>
+
+    <dialog id="questionBankDialog" class="history-dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">题库总览</p>
+          <h2>全部训练题目</h2>
+        </div>
+        <button id="closeQuestionBankDialogBtn" class="ghost" type="button">关闭</button>
+      </div>
+      <div class="bank-filters" aria-label="题库筛选">
+        <label>
+          <span>关键词</span>
+          <input id="bankSearchInput" type="search" placeholder="搜索题目、来源、标签" />
+        </label>
+        <label>
+          <span>来源</span>
+          <select id="bankModeFilter">
+            <option value="all">全部来源</option>
+            <option value="standard">模拟/专项</option>
+            <option value="real">真题训练</option>
+            <option value="professional">专业题</option>
+          </select>
+        </label>
+        <label>
+          <span>题型</span>
+          <select id="bankCategoryFilter">
+            <option value="all">全部题型</option>
+          </select>
+        </label>
+        <label>
+          <span>练习状态</span>
+          <select id="bankPracticeFilter">
+            <option value="all">全部状态</option>
+            <option value="done">已练习</option>
+            <option value="todo">未练习</option>
+          </select>
+        </label>
+        <label>
+          <span>上次分数</span>
+          <select id="bankScoreFilter">
+            <option value="all">全部分数</option>
+            <option value="none">暂无分数</option>
+            <option value="lt60">60 分以下</option>
+            <option value="60-79">60-79 分</option>
+            <option value="gte80">80 分以上</option>
+          </select>
+        </label>
+        <button id="bankResetBtn" class="secondary" type="button">重置</button>
+      </div>
+      <p id="questionBankCount" class="bank-count"></p>
+      <div id="questionBankContent" class="dialog-content"></div>
+    </dialog>
+
+    <script src="./word-questions.js"></script>
+    <script src="./professional-questions.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
