@@ -496,6 +496,7 @@ const state = {
   lastAudioDataUrl: "",
   pendingReviewAfterStop: false,
   pendingReviewKind: "single",
+  paused: false,
   recognition: null,
   transcriptBuffer: "",
   finalTranscriptParts: [],
@@ -516,6 +517,7 @@ const state = {
   reviewSaveTimer: null,
   activePage: "dashboard",
   lastSyncAt: localStorage.getItem("lastSyncTime") || "",
+  cloudTone: "muted",
   history: JSON.parse(localStorage.getItem("interviewHistory") || "[]")
 };
 
@@ -572,11 +574,14 @@ const els = {
   newQuestionBtn: document.querySelector("#newQuestionBtn"),
   startBtn: document.querySelector("#startBtn"),
   answerNowBtn: document.querySelector("#answerNowBtn"),
+  pauseBtn: document.querySelector("#pauseBtn"),
   finishBtn: document.querySelector("#finishBtn"),
   resetBtn: document.querySelector("#resetBtn"),
   phaseLabel: document.querySelector("#phaseLabel"),
   timerDisplay: document.querySelector("#timerDisplay"),
   phaseProgress: document.querySelector("#phaseProgress"),
+  dockModeLabel: document.querySelector("#dockModeLabel"),
+  mockProgressNav: document.querySelector("#mockProgressNav"),
   recordDot: document.querySelector("#recordDot"),
   recordStatus: document.querySelector("#recordStatus"),
   micTestBtn: document.querySelector("#micTestBtn"),
@@ -726,7 +731,7 @@ function openRecommendedPractice() {
 
 function renderSyncSummary() {
   const loggedIn = Boolean(state.user);
-  const status = loggedIn ? "云端可同步" : "本地保存";
+  const status = state.cloudTone === "error" ? "同步失败" : loggedIn ? "云端可同步" : "未登录";
   const detail = loggedIn
     ? (state.lastSyncAt ? `最后同步：${state.lastSyncAt}` : "登录成功，完成练习后会尝试同步")
     : "未登录，记录会保留在当前浏览器";
@@ -855,9 +860,11 @@ function pickPreferUnpracticed(items) {
 function renderQuestion() {
   const q = state.current;
   els.sessionTitle.textContent = state.mode === "mock" ? `正式模拟 · 第 ${state.mockIndex + 1}/3 题` : `${modeName(state.mode)} · ${q.category}`;
+  if (els.dockModeLabel) els.dockModeLabel.textContent = state.mode === "mock" ? `正式模拟 · 第 ${state.mockIndex + 1}/3 题` : `${modeName(state.mode)} · ${q.category}`;
   els.questionType.textContent = state.mode === "mock" ? "正式模拟" : q.category;
   els.questionDifficulty.textContent = state.mode === "mock" ? "三题套卷" : q.difficulty;
   els.questionSource.textContent = state.mode === "mock" ? `${state.mockViewMode === "read" ? "看题模式" : "听题模式"}｜12分钟3题` : q.source;
+  renderMockProgress();
   els.questionText.innerHTML = formatQuestionText(q);
   els.questionText.hidden = false;
   document.querySelector(".question-band").classList.toggle("listening-mode", state.mode === "mock" && state.mockViewMode === "listen" && !state.mockRevealed);
@@ -876,13 +883,48 @@ function formatQuestionText(q) {
   if (state.mode === "mock") {
     const list = state.mockQuestions.length ? state.mockQuestions : [q].filter(Boolean);
     return `<div class="mock-question-list">${list.map((item, index) => `
-      <article class="mock-question-item">
-        <strong>第${index + 1}题</strong>
-        <p>${escapeHtml(item.text)}</p>
+      <article class="mock-question-item ${index === state.mockIndex ? "active" : "preview"}" data-mock-question-index="${index}">
+        <div class="mock-question-head">
+          <strong>第${index + 1}题</strong>
+          <span>${escapeHtml(item.category || "")}</span>
+        </div>
+        <p>${escapeHtml(index === state.mockIndex ? item.text : truncateText(item.text, 54))}</p>
       </article>
     `).join("")}</div>`;
   }
   return `<p>${escapeHtml(q.text)}</p>`;
+}
+
+function renderMockProgress() {
+  if (!els.mockProgressNav) return;
+  if (state.mode !== "mock") {
+    els.mockProgressNav.innerHTML = "";
+    els.mockProgressNav.hidden = true;
+    return;
+  }
+  els.mockProgressNav.hidden = false;
+  const list = state.mockQuestions.length ? state.mockQuestions : [state.current].filter(Boolean);
+  els.mockProgressNav.innerHTML = list.map((item, index) => `
+    <button class="${index === state.mockIndex ? "active" : ""}" type="button" data-mock-progress-index="${index}">
+      第 ${index + 1} 题
+      <span>${escapeHtml(item.category || "")}</span>
+    </button>
+  `).join("");
+}
+
+function truncateText(text = "", max = 60) {
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function switchMockQuestion(index) {
+  if (state.mode !== "mock") return;
+  if (!state.mockQuestions[index]) return;
+  state.mockIndex = index;
+  state.current = state.mockQuestions[index];
+  renderQuestion();
+  renderMockTranscript("", index);
+  loadReviewDraftForCurrent();
+  renderFrameworkHint();
 }
 
 function escapeHtml(value = "") {
@@ -1035,6 +1077,27 @@ function updateTimer() {
   els.phaseProgress.style.background = state.phase === "answer" || state.phase === "mock-answer" ? "var(--red)" : "var(--blue)";
 }
 
+function pauseOrResumeTimer() {
+  if (state.phase === "idle" || state.phase === "done") return;
+  if (!state.paused) {
+    clearInterval(state.timerId);
+    clearTimeout(state.mockThinkId);
+    state.paused = true;
+    els.pauseBtn.textContent = "继续";
+    els.phaseLabel.textContent = `${els.phaseLabel.textContent} · 已暂停`;
+    if (state.recognition) state.recognition.stop();
+  if (state.mediaRecorder?.state === "recording" && state.mediaRecorder.pause) state.mediaRecorder.pause();
+    return;
+  }
+  state.paused = false;
+  els.pauseBtn.textContent = "暂停";
+  if (state.mediaRecorder?.state === "paused" && state.mediaRecorder.resume) state.mediaRecorder.resume();
+  if (state.phase === "answer" || state.phase === "mock-answer") startRecognition();
+  if (state.phase === "mock-think") state.mockThinkId = setTimeout(beginMockAnswer, 60000);
+  if (state.mode === "mock") startMockTotalTimer();
+  else startTimer(state.phase, state.remaining);
+}
+
 async function startSession() {
   if (state.mode === "mock") {
     await startMockSession();
@@ -1043,6 +1106,7 @@ async function startSession() {
   resetSession(false);
   speakQuestion();
   startTimer("think", Number(els.think.value));
+  els.pauseBtn.disabled = false;
   els.finishBtn.disabled = true;
   els.recordStatus.textContent = "等待答题开始";
 }
@@ -1056,6 +1120,7 @@ async function beginAnswer() {
   clearInterval(state.timerId);
   state.answerStartedAt = Date.now();
   els.finishBtn.disabled = false;
+  els.pauseBtn.disabled = false;
   els.recordStatus.textContent = "正在录音";
   els.recordDot.classList.add("live");
   await startRecording();
@@ -1074,6 +1139,7 @@ async function startMockSession() {
   state.remaining = 720;
   state.total = 720;
   els.finishBtn.disabled = state.mockViewMode !== "read";
+  els.pauseBtn.disabled = false;
   els.answerNowBtn.disabled = false;
   els.finishBtn.textContent = state.mockViewMode === "read" ? "结束模拟" : "结束答题";
   els.recordStatus.textContent = state.mockViewMode === "read" ? "看题模拟开始，计时和录音已启动" : "正式模拟开始，听题后进入思考";
@@ -1118,6 +1184,7 @@ function beginMockAnswer() {
   state.phase = "mock-answer";
   state.answerStartedAt = state.answerStartedAt || Date.now();
   els.finishBtn.disabled = false;
+  els.pauseBtn.disabled = false;
   els.finishBtn.textContent = state.mockIndex === state.mockQuestions.length - 1 ? "结束模拟" : "结束本题";
   els.recordDot.classList.add("live");
   els.recordStatus.textContent = `第 ${state.mockIndex + 1}/3 题答题中`;
@@ -1161,6 +1228,7 @@ function finishMockSession() {
   state.remaining = 0;
   state.mockRevealed = true;
   els.finishBtn.disabled = true;
+  els.pauseBtn.disabled = true;
   els.finishBtn.textContent = "结束答题";
   els.recordDot.classList.remove("live");
   els.recordStatus.textContent = `模拟完成，总用时 ${formatTime(state.answerSeconds)}`;
@@ -1169,12 +1237,12 @@ function finishMockSession() {
   state.current = buildMockSummaryQuestion();
   renderQuestion();
   updateTimer();
-  if (state.mediaRecorder?.state === "recording") {
+  if (["recording", "paused"].includes(state.mediaRecorder?.state)) {
     state.pendingReviewAfterStop = true;
     state.pendingReviewKind = "mock";
     state.mediaRecorder.requestData?.();
     setTimeout(() => {
-      if (state.mediaRecorder?.state === "recording") state.mediaRecorder.stop();
+      if (["recording", "paused"].includes(state.mediaRecorder?.state)) state.mediaRecorder.stop();
     }, 120);
     return;
   }
@@ -1381,15 +1449,16 @@ function finishAnswer() {
   state.answerSeconds = state.answerStartedAt ? Math.round((Date.now() - state.answerStartedAt) / 1000) : 0;
   updateTimer();
   els.finishBtn.disabled = true;
+  els.pauseBtn.disabled = true;
   els.recordDot.classList.remove("live");
   els.recordStatus.textContent = state.answerSeconds ? `录音完成，答题 ${formatTime(state.answerSeconds)}` : "已结束";
   if (state.recognition) state.recognition.stop();
-  if (state.mediaRecorder?.state === "recording") {
+  if (["recording", "paused"].includes(state.mediaRecorder?.state)) {
     state.pendingReviewAfterStop = true;
     state.pendingReviewKind = "single";
     state.mediaRecorder.requestData?.();
     setTimeout(() => {
-      if (state.mediaRecorder?.state === "recording") state.mediaRecorder.stop();
+      if (["recording", "paused"].includes(state.mediaRecorder?.state)) state.mediaRecorder.stop();
     }, 120);
     return;
   }
@@ -1401,7 +1470,7 @@ function resetSession(clearTranscript = true) {
   clearTimeout(state.mockThinkId);
   window.speechSynthesis?.cancel();
   state.recordingRunId += 1;
-  if (state.mediaRecorder?.state === "recording") state.mediaRecorder.stop();
+  if (["recording", "paused"].includes(state.mediaRecorder?.state)) state.mediaRecorder.stop();
   if (state.recognition) state.recognition.stop();
   state.phase = "idle";
   state.remaining = 0;
@@ -1410,12 +1479,15 @@ function resetSession(clearTranscript = true) {
   state.answerSeconds = 0;
   state.pendingReviewAfterStop = false;
   state.pendingReviewKind = "single";
+  state.paused = false;
   state.lastAudioDataUrl = "";
   state.mockThinkId = null;
   state.mockRevealed = state.mode !== "mock";
   state.mockTranscriptParts = ["", "", ""];
   els.finishBtn.disabled = true;
   els.finishBtn.textContent = "结束答题";
+  els.pauseBtn.disabled = true;
+  els.pauseBtn.textContent = "暂停";
   els.answerNowBtn.disabled = false;
   els.recordDot.classList.remove("live");
   els.recordStatus.textContent = "未录音";
@@ -2456,6 +2528,7 @@ function importDataBackup(file) {
 
 function setCloudMessage(message, tone = "muted") {
   if (!els.cloudMessage) return;
+  state.cloudTone = tone;
   els.cloudMessage.textContent = message || "";
   els.cloudMessage.dataset.tone = tone;
   if (tone === "success" && message.includes("云端")) {
@@ -3189,8 +3262,17 @@ els.newQuestionBtn.addEventListener("click", () => {
 });
 els.startBtn.addEventListener("click", startSession);
 els.answerNowBtn.addEventListener("click", beginAnswer);
+els.pauseBtn.addEventListener("click", pauseOrResumeTimer);
 els.finishBtn.addEventListener("click", finishAnswer);
 els.resetBtn.addEventListener("click", () => resetSession());
+els.mockProgressNav.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-mock-progress-index]");
+  if (button) switchMockQuestion(Number(button.dataset.mockProgressIndex));
+});
+els.questionText.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-mock-question-index]");
+  if (card) switchMockQuestion(Number(card.dataset.mockQuestionIndex));
+});
 els.reviewBtn.addEventListener("click", reviewAnswer);
 els.chatgptPromptBtn.addEventListener("click", copyChatGPTPrompt);
 els.micTestBtn.addEventListener("click", testMicrophone);

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>上海事业编面试 AI 陪练</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=practice-workstation-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -203,6 +203,30 @@
             </aside>
 
             <section class="practice-main">
+              <section class="practice-timer-dock" aria-label="答题控制台">
+                <div class="timer-context">
+                  <p class="eyebrow">答题控制台</p>
+                  <strong id="dockModeLabel">正式模拟</strong>
+                  <div id="mockProgressNav" class="mock-progress-nav" aria-label="正式模拟题目进度"></div>
+                </div>
+                <div class="timer-card compact-timer" id="timerCard">
+                  <div>
+                    <p id="phaseLabel">准备开始</p>
+                    <strong id="timerDisplay">00:00</strong>
+                  </div>
+                  <div class="phase-track" aria-hidden="true">
+                    <span id="phaseProgress"></span>
+                  </div>
+                </div>
+                <div class="control-grid dock-controls">
+                  <button id="startBtn" class="primary" type="button">开始模拟</button>
+                  <button id="answerNowBtn" class="secondary" type="button">开始答题</button>
+                  <button id="pauseBtn" class="ghost" type="button" disabled>暂停</button>
+                  <button id="finishBtn" class="danger" type="button" disabled>结束答题</button>
+                  <button id="resetBtn" class="secondary" type="button">重置</button>
+                </div>
+              </section>
+
               <section class="question-band">
                 <div class="question-meta">
                   <span id="questionType">综合分析</span>
@@ -222,23 +246,6 @@
 
               <section class="training-grid">
                 <div class="coach-panel">
-                  <div class="timer-card" id="timerCard">
-                    <div>
-                      <p id="phaseLabel">准备开始</p>
-                      <strong id="timerDisplay">00:00</strong>
-                    </div>
-                    <div class="phase-track" aria-hidden="true">
-                      <span id="phaseProgress"></span>
-                    </div>
-                  </div>
-
-                  <div class="control-grid">
-                    <button id="startBtn" class="primary" type="button">开始模拟</button>
-                    <button id="answerNowBtn" class="secondary" type="button">开始答题</button>
-                    <button id="finishBtn" class="danger" type="button" disabled>结束答题</button>
-                    <button id="resetBtn" class="secondary" type="button">重置</button>
-                  </div>
-
                   <div class="recording-box">
                     <div class="recording-state">
                       <span class="dot" id="recordDot"></span>
@@ -485,6 +492,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./word-questions.js"></script>
     <script src="./professional-questions.js"></script>
-    <script src="./app.js?v=product-refactor-2"></script>
+    <script src="./app.js?v=practice-workstation-1"></script>
   </body>
 </html>
