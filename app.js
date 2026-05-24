@@ -2604,12 +2604,31 @@ async function insertSyncLogRow(row) {
       user_id: row.user_id,
       message: row.message,
       created_at: row.created_at
+    },
+    {
+      user_id: row.user_id,
+      action: row.action,
+      status: row.status,
+      created_at: row.created_at
+    },
+    {
+      user_id: row.user_id,
+      action: row.action,
+      status: row.status
+    },
+    {
+      user_id: row.user_id,
+      created_at: row.created_at
+    },
+    {
+      user_id: row.user_id
     }
   ];
   let lastError = null;
-  for (const variant of variants) {
+  for (let index = 0; index < variants.length; index += 1) {
+    const variant = variants[index];
     const { error } = await supabaseClient.from("sync_logs").insert([variant]);
-    if (!error) return { error: null };
+    if (!error) return { error: null, variantIndex: index, fields: Object.keys(variant) };
     lastError = error;
   }
   return { error: lastError };
@@ -2649,7 +2668,8 @@ async function testCloudWrite() {
     setCloudMessage(`云端同步失败：${result.error.message}`, "error");
     return;
   }
-  setCloudMessage("云端已同步", "success");
+  const fieldText = result.fields?.join("、") || "默认字段";
+  setCloudMessage(`云端已同步：sync_logs 写入成功（字段：${fieldText}）`, "success");
 }
 
 async function migrateLocalDataToCloud() {
