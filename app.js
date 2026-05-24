@@ -504,6 +504,7 @@ const state = {
   mockIndex: 0,
   mockThinkId: null,
   mockRevealed: false,
+  mockStartedAt: null,
   mockTranscriptParts: ["", "", ""],
   reviewedTranscript: "",
   reviewedQuestionText: "",
@@ -1043,6 +1044,33 @@ function setMockViewMode(viewMode) {
 function updateStartButtonText() {
   els.startBtn.textContent = state.mode === "mock" ? "开始模拟" : state.mode === "real" ? "开始真题" : state.mode === "professional" ? "开始专业题" : "开始专项";
   els.answerNowBtn.textContent = "开始答题";
+  els.finishBtn.textContent = "结束本题";
+  updatePracticeControls();
+}
+
+function setButtonVisible(button, visible) {
+  if (!button) return;
+  button.hidden = !visible;
+}
+
+function updatePracticeControls() {
+  const phase = state.phase;
+  const isAnswering = phase === "answer" || phase === "mock-answer";
+  const isPreparing = ["think", "mock-ready", "mock-read", "mock-think"].includes(phase);
+  const isIdle = phase === "idle";
+  const isDone = phase === "done";
+
+  setButtonVisible(els.startBtn, isIdle || isDone);
+  setButtonVisible(els.answerNowBtn, isPreparing);
+  setButtonVisible(els.pauseBtn, isAnswering);
+  setButtonVisible(els.finishBtn, isAnswering);
+  setButtonVisible(els.resetBtn, true);
+
+  els.startBtn.disabled = false;
+  els.answerNowBtn.disabled = !isPreparing;
+  els.pauseBtn.disabled = !isAnswering;
+  els.finishBtn.disabled = !isAnswering;
+  els.finishBtn.textContent = "结束本题";
 }
 
 function formatTime(seconds) {
@@ -1069,12 +1097,13 @@ function startTimer(phase, seconds) {
 }
 
 function updateTimer() {
-  const labels = { idle: "准备开始", think: "思考时间", answer: "答题时间", done: "本题完成", "mock-think": `第 ${state.mockIndex + 1}/3 题思考`, "mock-answer": `第 ${state.mockIndex + 1}/3 题答题`, "mock-read": `第 ${state.mockIndex + 1}/3 题读题` };
+  const labels = { idle: "准备开始", think: "思考时间", answer: "答题时间", done: "本题完成", "mock-ready": `第 ${state.mockIndex + 1}/3 题准备`, "mock-think": `第 ${state.mockIndex + 1}/3 题思考`, "mock-answer": `第 ${state.mockIndex + 1}/3 题答题`, "mock-read": `第 ${state.mockIndex + 1}/3 题读题` };
   els.phaseLabel.textContent = labels[state.phase];
   els.timerDisplay.textContent = formatTime(state.remaining);
   const used = state.total ? ((state.total - state.remaining) / state.total) * 100 : 0;
   els.phaseProgress.style.width = `${Math.min(100, Math.max(0, used))}%`;
   els.phaseProgress.style.background = state.phase === "answer" || state.phase === "mock-answer" ? "var(--red)" : "var(--blue)";
+  updatePracticeControls();
 }
 
 function pauseOrResumeTimer() {
@@ -1106,7 +1135,7 @@ async function startSession() {
   resetSession(false);
   speakQuestion();
   startTimer("think", Number(els.think.value));
-  els.pauseBtn.disabled = false;
+  els.pauseBtn.disabled = true;
   els.finishBtn.disabled = true;
   els.recordStatus.textContent = "等待答题开始";
 }
@@ -1135,30 +1164,24 @@ async function startMockSession() {
   state.current = state.mockQuestions[0];
   state.mockRevealed = state.mockViewMode === "read";
   state.mockTranscriptParts = ["", "", ""];
-  state.phase = state.mockViewMode === "read" ? "mock-answer" : "mock-read";
+  state.phase = state.mockViewMode === "read" ? "mock-ready" : "mock-read";
   state.remaining = 720;
   state.total = 720;
-  els.finishBtn.disabled = state.mockViewMode !== "read";
-  els.pauseBtn.disabled = false;
-  els.answerNowBtn.disabled = false;
-  els.finishBtn.textContent = state.mockViewMode === "read" ? "结束模拟" : "结束答题";
-  els.recordStatus.textContent = state.mockViewMode === "read" ? "看题模拟开始，计时和录音已启动" : "正式模拟开始，听题后进入思考";
+  state.mockStartedAt = null;
+  state.answerStartedAt = null;
+  els.recordStatus.textContent = state.mockViewMode === "read" ? "第 1/3 题准备中，点击“开始答题”后开始计时和录音" : "正式模拟开始，听题后进入思考";
   renderQuestion();
   loadReviewDraftForCurrent();
   renderMockTranscript();
   clearFeedback();
-  await startRecording();
-  startMockTotalTimer();
   if (state.mockViewMode === "read") {
-    state.answerStartedAt = Date.now();
-    els.recordDot.classList.add("live");
-    startRecognition();
     updateTimer();
     return;
   }
   speakQuestion();
   state.phase = "mock-think";
   updateTimer();
+  startMockTotalTimer();
   clearTimeout(state.mockThinkId);
   state.mockThinkId = setTimeout(beginMockAnswer, 60000);
 }
@@ -1174,7 +1197,7 @@ function startMockTotalTimer() {
   }, 1000);
 }
 
-function beginMockAnswer() {
+async function beginMockAnswer() {
   if (state.mode === "mock" && state.phase === "idle") {
     startMockSession();
     return;
@@ -1182,34 +1205,53 @@ function beginMockAnswer() {
   if (state.mode !== "mock" || state.phase === "mock-answer" || state.phase === "done") return;
   clearTimeout(state.mockThinkId);
   state.phase = "mock-answer";
-  state.answerStartedAt = state.answerStartedAt || Date.now();
-  els.finishBtn.disabled = false;
-  els.pauseBtn.disabled = false;
-  els.finishBtn.textContent = state.mockIndex === state.mockQuestions.length - 1 ? "结束模拟" : "结束本题";
+  state.answerStartedAt = Date.now();
+  state.mockStartedAt = state.mockStartedAt || Date.now();
   els.recordDot.classList.add("live");
   els.recordStatus.textContent = `第 ${state.mockIndex + 1}/3 题答题中`;
   renderMockTranscript();
+  const answerIndex = state.mockIndex;
+  const answerLabel = ["第一题", "第二题", "第三题"][answerIndex];
+  await startRecording({
+    questionText: state.current.text,
+    transcriptGetter: () => paragraphizeTranscript(`${answerLabel}：${state.mockTranscriptParts[answerIndex] || ""}`)
+  });
   startRecognition();
+  startMockTotalTimer();
   updateTimer();
 }
 
 function finishMockQuestion() {
   if (state.mode !== "mock") return;
-  if (state.mockViewMode === "read") {
+  if (state.recognition) state.recognition.stop();
+  clearTimeout(state.mockThinkId);
+  state.answerSeconds = state.answerStartedAt ? Math.round((Date.now() - state.answerStartedAt) / 1000) : 0;
+  els.recordDot.classList.remove("live");
+  const isLastQuestion = state.mockIndex >= state.mockQuestions.length - 1;
+  if (!isLastQuestion && ["recording", "paused"].includes(state.mediaRecorder?.state)) {
+    state.mediaRecorder.requestData?.();
+    setTimeout(() => {
+      if (["recording", "paused"].includes(state.mediaRecorder?.state)) state.mediaRecorder.stop();
+    }, 120);
+  }
+  if (isLastQuestion) {
     finishMockSession();
     return;
   }
-  if (state.recognition) state.recognition.stop();
-  clearTimeout(state.mockThinkId);
   if (state.mockIndex < state.mockQuestions.length - 1 && state.remaining > 0) {
     state.mockIndex += 1;
     state.current = state.mockQuestions[state.mockIndex];
-    state.phase = "mock-read";
-    els.finishBtn.disabled = true;
-    els.finishBtn.textContent = "结束答题";
-    els.recordStatus.textContent = `第 ${state.mockIndex + 1}/3 题读题中`;
+    state.answerStartedAt = null;
+    state.phase = state.mockViewMode === "read" ? "mock-ready" : "mock-read";
+    els.recordStatus.textContent = state.mockViewMode === "read"
+      ? `第 ${state.mockIndex + 1}/3 题准备中，点击“开始答题”后继续`
+      : `第 ${state.mockIndex + 1}/3 题读题中`;
     renderQuestion();
     renderMockTranscript();
+    if (state.mockViewMode === "read") {
+      updateTimer();
+      return;
+    }
     speakQuestion();
     state.phase = "mock-think";
     updateTimer();
@@ -1224,12 +1266,12 @@ function finishMockSession() {
   clearInterval(state.timerId);
   clearTimeout(state.mockThinkId);
   state.phase = "done";
-  state.answerSeconds = state.answerStartedAt ? Math.round((Date.now() - state.answerStartedAt) / 1000) : 720 - state.remaining;
+  state.answerSeconds = state.mockStartedAt ? Math.round((Date.now() - state.mockStartedAt) / 1000) : 720 - state.remaining;
   state.remaining = 0;
   state.mockRevealed = true;
   els.finishBtn.disabled = true;
   els.pauseBtn.disabled = true;
-  els.finishBtn.textContent = "结束答题";
+  els.finishBtn.textContent = "结束本题";
   els.recordDot.classList.remove("live");
   els.recordStatus.textContent = `模拟完成，总用时 ${formatTime(state.answerSeconds)}`;
   if (state.recognition) state.recognition.stop();
@@ -1261,6 +1303,8 @@ function renderMockTranscript(interim = "", interimIndex = state.mockIndex) {
 
 async function startRecording(options = {}) {
   const saveAttemptOnStop = options.saveAttemptOnStop !== false;
+  const recordingQuestionText = options.questionText || state.current?.text || "";
+  const transcriptGetter = options.transcriptGetter;
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     const message = location.protocol === "file:"
       ? "文件模式不支持录音，请使用本地服务或线上地址打开"
@@ -1289,7 +1333,10 @@ async function startRecording(options = {}) {
         els.audio.src = URL.createObjectURL(blob);
         state.lastAudioDataUrl = await blobToDataUrl(blob);
         els.audio.load();
-        if (saveAttemptOnStop) saveAttempt(state.lastAudioDataUrl);
+        if (saveAttemptOnStop) {
+          const transcriptOverride = typeof transcriptGetter === "function" ? transcriptGetter() : null;
+          saveAttempt(state.lastAudioDataUrl, recordingQuestionText, transcriptOverride);
+        }
         els.recordStatus.textContent = `录音已保存，约 ${formatTime(state.answerSeconds || Math.max(1, Math.round(blob.size / 16000)))}`;
       } else {
         els.audio.removeAttribute("src");
@@ -1321,12 +1368,12 @@ function blobToDataUrl(blob) {
   });
 }
 
-function saveAttempt(audioSrc = state.lastAudioDataUrl || "") {
-  if (!state.current) return;
-  const key = attemptKey();
+function saveAttempt(audioSrc = state.lastAudioDataUrl || "", questionText = state.current?.text || "", transcriptOverride = null) {
+  if (!questionText) return;
+  const key = attemptKey(questionText);
   const attempts = state.questionAttempts[key] || [];
-  const transcript = paragraphizeTranscript(els.transcript.value.trim());
-  if (transcript) els.transcript.value = transcript;
+  const transcript = paragraphizeTranscript(transcriptOverride ?? els.transcript.value.trim());
+  if (transcript && questionText === state.current?.text) els.transcript.value = transcript;
   const item = {
     id: `attempt-${Date.now()}`,
     name: `${attempts.length + 1}`,
@@ -1338,7 +1385,7 @@ function saveAttempt(audioSrc = state.lastAudioDataUrl || "") {
   state.questionAttempts[key] = [...attempts, item];
   localStorage.setItem("questionAttempts", JSON.stringify(state.questionAttempts));
   renderAttempts();
-  syncAttemptToCloud(state.current.text, item);
+  syncAttemptToCloud(questionText, item);
 }
 
 function deleteAttempt(id) {
@@ -1477,6 +1524,7 @@ function resetSession(clearTranscript = true) {
   state.total = 0;
   state.answerStartedAt = null;
   state.answerSeconds = 0;
+  state.mockStartedAt = null;
   state.pendingReviewAfterStop = false;
   state.pendingReviewKind = "single";
   state.paused = false;
@@ -1485,7 +1533,7 @@ function resetSession(clearTranscript = true) {
   state.mockRevealed = state.mode !== "mock";
   state.mockTranscriptParts = ["", "", ""];
   els.finishBtn.disabled = true;
-  els.finishBtn.textContent = "结束答题";
+  els.finishBtn.textContent = "结束本题";
   els.pauseBtn.disabled = true;
   els.pauseBtn.textContent = "暂停";
   els.answerNowBtn.disabled = false;
