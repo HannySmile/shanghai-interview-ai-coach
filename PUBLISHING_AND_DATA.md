@@ -82,9 +82,12 @@ python3 -m http.server 4199 --bind 127.0.0.1
 - 「从云端同步数据」会按当前登录用户 `user_id` 拉取数据并合并到本地。
 - 录音暂不做跨设备云端同步，仍然保留本地逻辑。
 
-建议 Supabase 表至少包含这些字段，或者包含兼容的 `user_id`、`local_id`、`payload/jsonb` 类字段：
+当前 `practice_records` 写入严格使用这些字段：
 
-- `practice_records`：`user_id`、`local_id`、`record_type`、`mode`、`category`、`focus`、`question_text`、`score`、`transcript`、`review_notes`、`actual_seconds`、`scores`、`child_questions`、`payload`、`created_at`、`updated_at`。
+- `practice_records`：`user_id`、`question_id`、`question_title`、`question_source`、`question_type`、`answer_text`、`transcript`、`score`、`status`、`review_note`、`practiced_at`。
+
+其他表建议至少包含这些字段，或者包含兼容的 `user_id` 和 JSON 类字段：
+
 - `custom_questions`：`user_id`、`local_id`、`category`、`difficulty`、`source`、`question_text`、`cues`、`points`、`is_deleted`、`payload`、`created_at`、`updated_at`。
 - `sync_logs`：`user_id`、`action`、`status`、`message`、`counts`、`payload`、`created_at`。
 
