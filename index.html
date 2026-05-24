@@ -97,6 +97,31 @@
           <p class="helper-text">建议每次重要练习后导出一次，录音、文字稿、分数、题目状态和复盘都会一起保存。</p>
         </section>
 
+        <section class="panel compact cloud-panel">
+          <h2>云端同步</h2>
+          <p id="cloudStatus" class="helper-text">未登录，当前只保存到本地。</p>
+          <div id="authForm" class="cloud-auth-form">
+            <label>
+              <span>邮箱</span>
+              <input id="authEmail" type="email" autocomplete="email" placeholder="输入邮箱" />
+            </label>
+            <label>
+              <span>密码</span>
+              <input id="authPassword" type="password" autocomplete="current-password" placeholder="至少 6 位" />
+            </label>
+            <div class="backup-grid">
+              <button id="signInBtn" class="secondary" type="button">登录</button>
+              <button id="signUpBtn" class="ghost" type="button">注册</button>
+            </div>
+          </div>
+          <div class="backup-grid">
+            <button id="migrateCloudBtn" class="secondary" type="button">迁移本地数据到云端</button>
+            <button id="syncCloudBtn" class="ghost" type="button">从云端同步数据</button>
+          </div>
+          <button id="signOutBtn" class="ghost wide" type="button" hidden>退出登录</button>
+          <p id="cloudMessage" class="helper-text"></p>
+        </section>
+
         <section class="panel compact">
           <div class="history-head slim">
             <h2>模拟练习记录</h2>
@@ -338,6 +363,7 @@
       <div id="historyDialogContent" class="dialog-content"></div>
     </dialog>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./word-questions.js"></script>
     <script src="./professional-questions.js"></script>
     <script src="./app.js"></script>

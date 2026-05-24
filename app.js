@@ -371,9 +371,117 @@ const focusRubrics = {
   }
 };
 
+const SUPABASE_URL = "https://jlczhtaikdtlquhnfydv.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_DOxkwKO-Zrb8GehmphYq2w_6BEy0t6-";
+
+function createSupabaseRestClient(url, key) {
+  const sessionKey = "supabaseSession";
+  const listeners = [];
+  const readSession = () => {
+    try {
+      return JSON.parse(localStorage.getItem(sessionKey) || "null");
+    } catch (_error) {
+      return null;
+    }
+  };
+  const writeSession = (session) => {
+    if (session) localStorage.setItem(sessionKey, JSON.stringify(session));
+    else localStorage.removeItem(sessionKey);
+    listeners.forEach((listener) => listener("SIGNED_IN", session));
+  };
+  const headers = (session = readSession()) => ({
+    apikey: key,
+    Authorization: `Bearer ${session?.access_token || key}`,
+    "Content-Type": "application/json"
+  });
+  const request = async (path, options = {}) => {
+    const response = await fetch(`${url}${path}`, {
+      ...options,
+      headers: { ...headers(), ...(options.headers || {}) }
+    });
+    const text = await response.text();
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch (_error) {
+      body = text || null;
+    }
+    if (!response.ok) return { data: null, error: { message: body?.msg || body?.message || response.statusText, details: body } };
+    return { data: body, error: null };
+  };
+  return {
+    auth: {
+      async getUser() {
+        const session = readSession();
+        if (!session?.access_token) return { data: { user: null }, error: null };
+        const result = await request("/auth/v1/user", { method: "GET" });
+        return { data: { user: result.data || null }, error: result.error };
+      },
+      async signUp({ email, password }) {
+        const result = await request("/auth/v1/signup", { method: "POST", body: JSON.stringify({ email, password }) });
+        if (result.data?.access_token) writeSession(result.data);
+        return result;
+      },
+      async signInWithPassword({ email, password }) {
+        const result = await request("/auth/v1/token?grant_type=password", { method: "POST", body: JSON.stringify({ email, password }) });
+        if (result.data?.access_token) writeSession(result.data);
+        return { data: { user: result.data?.user || null, session: result.data || null }, error: result.error };
+      },
+      async signOut() {
+        const session = readSession();
+        if (session?.access_token) await request("/auth/v1/logout", { method: "POST" });
+        writeSession(null);
+        return { error: null };
+      },
+      onAuthStateChange(callback) {
+        listeners.push(callback);
+        return { data: { subscription: { unsubscribe() {} } } };
+      }
+    },
+    from(table) {
+      const tablePath = `/rest/v1/${table}`;
+      return {
+        async insert(rows) {
+          return request(tablePath, {
+            method: "POST",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify(rows)
+          });
+        },
+        async upsert(rows, options = {}) {
+          const conflict = options.onConflict ? `?on_conflict=${encodeURIComponent(options.onConflict)}` : "";
+          return request(`${tablePath}${conflict}`, {
+            method: "POST",
+            headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify(rows)
+          });
+        },
+        select(columns = "*") {
+          return {
+            eq(column, value) {
+              const query = `?select=${encodeURIComponent(columns)}&${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`;
+              return request(`${tablePath}${query}`, { method: "GET" });
+            }
+          };
+        }
+      };
+    }
+  };
+}
+
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+}) || createSupabaseRestClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
 const state = {
   mode: "mock",
   mockViewMode: localStorage.getItem("mockViewMode") || "listen",
+  user: null,
+  cloudBusy: false,
   current: null,
   timerId: null,
   phase: "idle",
@@ -471,6 +579,16 @@ const els = {
   exportData: document.querySelector("#exportDataBtn"),
   importData: document.querySelector("#importDataBtn"),
   importDataInput: document.querySelector("#importDataInput"),
+  cloudStatus: document.querySelector("#cloudStatus"),
+  cloudMessage: document.querySelector("#cloudMessage"),
+  authForm: document.querySelector("#authForm"),
+  authEmail: document.querySelector("#authEmail"),
+  authPassword: document.querySelector("#authPassword"),
+  signInBtn: document.querySelector("#signInBtn"),
+  signUpBtn: document.querySelector("#signUpBtn"),
+  signOutBtn: document.querySelector("#signOutBtn"),
+  migrateCloudBtn: document.querySelector("#migrateCloudBtn"),
+  syncCloudBtn: document.querySelector("#syncCloudBtn"),
   skillList: document.querySelector("#skillList"),
   historyDialog: document.querySelector("#historyDialog"),
   historyDialogTitle: document.querySelector("#historyDialogTitle"),
@@ -1051,6 +1169,7 @@ function saveAttempt(audioSrc = state.lastAudioDataUrl || "") {
   state.questionAttempts[key] = [...attempts, item];
   localStorage.setItem("questionAttempts", JSON.stringify(state.questionAttempts));
   renderAttempts();
+  syncAttemptToCloud(state.current.text, item);
 }
 
 function deleteAttempt(id) {
@@ -1711,6 +1830,7 @@ function saveHistory(analysis) {
   renderHistory();
   renderMockHistory();
   renderCurrentPracticeStatus();
+  syncRecordToCloud(item);
 }
 
 function renderHistory() {
@@ -1965,6 +2085,7 @@ function saveManualQuestionStatus(index) {
   localStorage.setItem("manualQuestionStatus", JSON.stringify(state.manualQuestionStatus));
   renderQuestionBank();
   renderCurrentPracticeStatus();
+  syncStatusToCloud(q.text, state.manualQuestionStatus[q.text] || { status: "auto", score: "", updatedAt: Date.now() });
 }
 
 function addCustomQuestion(event) {
@@ -1992,6 +2113,7 @@ function addCustomQuestion(event) {
   localStorage.setItem("deletedQuestionTexts", JSON.stringify(state.deletedQuestionTexts));
   els.addQuestionForm.reset();
   renderQuestionBank();
+  syncCustomQuestionToCloud(question);
 }
 
 function deleteQuestionFromBank(index) {
@@ -2023,6 +2145,7 @@ function setCurrentPracticeStatus(status) {
   localStorage.setItem("manualQuestionStatus", JSON.stringify(state.manualQuestionStatus));
   renderCurrentPracticeStatus();
   renderQuestionBank();
+  syncStatusToCloud(state.current.text, state.manualQuestionStatus[state.current.text]);
   const oldText = status === "done" ? "标为已练" : "标为未练";
   const button = status === "done" ? els.markCurrentDoneBtn : els.markCurrentTodoBtn;
   button.textContent = "已同步";
@@ -2059,6 +2182,7 @@ function persistReviewNotes(options = {}) {
     record.reviewNotes = notes;
     localStorage.setItem("interviewHistory", JSON.stringify(state.history));
     renderHistory();
+    syncRecordToCloud(record);
   }
 }
 
@@ -2129,6 +2253,480 @@ function importDataBackup(file) {
     }
   };
   reader.readAsText(file);
+}
+
+function setCloudMessage(message, tone = "muted") {
+  if (!els.cloudMessage) return;
+  els.cloudMessage.textContent = message || "";
+  els.cloudMessage.dataset.tone = tone;
+}
+
+function renderCloudAuth() {
+  if (!els.cloudStatus) return;
+  if (!supabaseClient) {
+    els.cloudStatus.textContent = "Supabase SDK 未加载，当前只能保存到本地。";
+    [els.signInBtn, els.signUpBtn, els.signOutBtn, els.migrateCloudBtn, els.syncCloudBtn].forEach((button) => {
+      if (button) button.disabled = true;
+    });
+    return;
+  }
+  const loggedIn = Boolean(state.user);
+  els.cloudStatus.textContent = loggedIn ? `已登录：${state.user.email || state.user.id}` : "未登录，当前只保存到本地。";
+  els.authForm.hidden = loggedIn;
+  els.signOutBtn.hidden = !loggedIn;
+  els.migrateCloudBtn.disabled = !loggedIn || state.cloudBusy;
+  els.syncCloudBtn.disabled = !loggedIn || state.cloudBusy;
+}
+
+async function initSupabaseAuth() {
+  if (!supabaseClient) {
+    renderCloudAuth();
+    return;
+  }
+  const { data } = await supabaseClient.auth.getUser();
+  state.user = data?.user || null;
+  renderCloudAuth();
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    state.user = session?.user || null;
+    renderCloudAuth();
+  });
+}
+
+function getAuthInput() {
+  return {
+    email: els.authEmail.value.trim(),
+    password: els.authPassword.value
+  };
+}
+
+async function signUpWithEmail() {
+  if (!supabaseClient) return;
+  const { email, password } = getAuthInput();
+  if (!email || password.length < 6) {
+    setCloudMessage("请填写邮箱和至少 6 位密码。", "error");
+    return;
+  }
+  setCloudMessage("正在注册...");
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) {
+    setCloudMessage(`注册失败：${error.message}`, "error");
+    return;
+  }
+  setCloudMessage("注册成功。如果 Supabase 开启了邮件确认，请先去邮箱完成确认后再登录。", "success");
+}
+
+async function signInWithEmail() {
+  if (!supabaseClient) return;
+  const { email, password } = getAuthInput();
+  if (!email || !password) {
+    setCloudMessage("请填写邮箱和密码。", "error");
+    return;
+  }
+  setCloudMessage("正在登录...");
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    setCloudMessage(`登录失败：${error.message}`, "error");
+    return;
+  }
+  state.user = data.user;
+  renderCloudAuth();
+  setCloudMessage("登录成功，之后的新练习会先保存本地，再尝试同步到云端。", "success");
+}
+
+async function signOut() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  state.user = null;
+  renderCloudAuth();
+  setCloudMessage("已退出登录，后续只保存到本地。");
+}
+
+function requireCloudUser() {
+  if (!supabaseClient) {
+    setCloudMessage("Supabase SDK 未加载，当前只能保存本地。", "error");
+    return null;
+  }
+  if (!state.user) {
+    setCloudMessage("登录后可同步到云端。", "muted");
+    return null;
+  }
+  return state.user;
+}
+
+function stripLocalOnlyFields(value) {
+  if (Array.isArray(value)) return value.map(stripLocalOnlyFields);
+  if (!value || typeof value !== "object") return value;
+  const output = {};
+  Object.entries(value).forEach(([key, item]) => {
+    if (key === "audioSrc" || key === "lastAudioDataUrl") {
+      output[key] = "";
+      return;
+    }
+    output[key] = stripLocalOnlyFields(item);
+  });
+  return output;
+}
+
+function stableHash(text = "") {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function practiceRecordRows(user) {
+  const historyRows = state.history.map((record) => {
+    const payload = stripLocalOnlyFields(record);
+    return {
+      user_id: user.id,
+      local_id: record.id,
+      record_type: "history",
+      mode: record.mode || "",
+      category: record.category || "",
+      focus: record.focus || "",
+      question_text: record.question || "",
+      score: Number.isFinite(Number(record.score)) ? Number(record.score) : null,
+      transcript: record.transcript || "",
+      review_notes: record.reviewNotes || {},
+      actual_seconds: Number(record.actualSeconds || 0),
+      scores: record.scores || {},
+      child_questions: record.childQuestions || [],
+      payload,
+      created_at: record.cloudCreatedAt || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  });
+  const manualRows = Object.entries(state.manualQuestionStatus).map(([question, value]) => ({
+    user_id: user.id,
+    local_id: `manual-${stableHash(question)}`,
+    record_type: "manual_status",
+    mode: "status",
+    category: "",
+    focus: "",
+    question_text: question,
+    score: value?.score === "" || value?.score === undefined ? null : Number(value.score),
+    transcript: "",
+    review_notes: {},
+    actual_seconds: null,
+    scores: {},
+    child_questions: [],
+    payload: { question, ...value },
+    created_at: value?.updatedAt ? new Date(value.updatedAt).toISOString() : new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }));
+  const reviewRows = Object.entries(state.reviewDrafts).map(([key, notes]) => ({
+    user_id: user.id,
+    local_id: `review-${stableHash(key)}`,
+    record_type: "review_draft",
+    mode: "review",
+    category: "",
+    focus: "",
+    question_text: key.replace(/^question\|/, ""),
+    score: null,
+    transcript: "",
+    review_notes: notes || {},
+    actual_seconds: null,
+    scores: {},
+    child_questions: [],
+    payload: { key, notes },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }));
+  const attemptRows = Object.entries(state.questionAttempts).flatMap(([key, attempts]) => {
+    const question = key.replace(/^question\|/, "");
+    return (attempts || []).map((attempt) => {
+      const payload = stripLocalOnlyFields({ key, question, ...attempt });
+      return {
+        user_id: user.id,
+        local_id: attempt.id || `attempt-${stableHash(`${key}-${attempt.time || ""}`)}`,
+        record_type: "attempt",
+        mode: "attempt",
+        category: "",
+        focus: "",
+        question_text: question,
+        score: null,
+        transcript: attempt.transcript || "",
+        review_notes: {},
+        actual_seconds: Number(attempt.seconds || 0),
+        scores: {},
+        child_questions: [],
+        payload,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    });
+  });
+  return [...historyRows, ...manualRows, ...reviewRows, ...attemptRows];
+}
+
+function customQuestionRows(user) {
+  return state.customQuestions.map((question) => ({
+    user_id: user.id,
+    local_id: `custom-${stableHash(question.text)}`,
+    category: question.category || "",
+    difficulty: question.difficulty || "自建",
+    source: question.source || "自建题",
+    question_text: question.text || "",
+    cues: question.cues || [],
+    points: question.points || [],
+    is_deleted: false,
+    payload: question,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }));
+}
+
+async function writeRowsWithFallback(table, rows, typeName) {
+  if (!rows.length) return { count: 0, error: null };
+  const tryWrite = async (payloadRows) => {
+    const { error } = await supabaseClient.from(table).upsert(payloadRows, { onConflict: "user_id,local_id" });
+    if (!error) return { error: null };
+    const inserted = await supabaseClient.from(table).insert(payloadRows);
+    return { error: inserted.error };
+  };
+  const full = await tryWrite(rows);
+  if (!full.error) return { count: rows.length, error: null };
+  const compactRows = rows.map((row) => ({
+    user_id: row.user_id,
+    local_id: row.local_id,
+    item_type: row.record_type || typeName,
+    payload: row.payload || row,
+    updated_at: row.updated_at || new Date().toISOString()
+  }));
+  const compact = await tryWrite(compactRows);
+  if (!compact.error) return { count: rows.length, error: null };
+  const dataRows = rows.map((row) => ({
+    user_id: row.user_id,
+    type: row.record_type || typeName,
+    data: row.payload || row,
+    updated_at: row.updated_at || new Date().toISOString()
+  }));
+  const dataOnly = await supabaseClient.from(table).insert(dataRows);
+  return { count: dataOnly.error ? 0 : rows.length, error: dataOnly.error || null };
+}
+
+async function writeSyncLog(action, status, message, counts = {}) {
+  const user = state.user;
+  if (!user || !supabaseClient) return;
+  const row = {
+    user_id: user.id,
+    action,
+    status,
+    message,
+    counts,
+    payload: { origin: location.origin, pathname: location.pathname },
+    created_at: new Date().toISOString()
+  };
+  await writeRowsWithFallback("sync_logs", [row], "sync_log");
+}
+
+async function migrateLocalDataToCloud() {
+  const user = requireCloudUser();
+  if (!user || state.cloudBusy) return;
+  state.cloudBusy = true;
+  renderCloudAuth();
+  setCloudMessage("正在迁移本地数据到云端...");
+  const practice = await writeRowsWithFallback("practice_records", practiceRecordRows(user), "practice_record");
+  const questions = await writeRowsWithFallback("custom_questions", customQuestionRows(user), "custom_question");
+  const ok = !practice.error && !questions.error;
+  const message = ok
+    ? `迁移完成：练习相关 ${practice.count} 条，自建题 ${questions.count} 条。`
+    : `迁移部分失败：${practice.error?.message || questions.error?.message || "请检查 Supabase 表字段和 RLS 策略。"}`;
+  await writeSyncLog("local_to_cloud", ok ? "success" : "error", message, { practice: practice.count, customQuestions: questions.count });
+  setCloudMessage(message, ok ? "success" : "error");
+  state.cloudBusy = false;
+  renderCloudAuth();
+}
+
+async function syncRecordToCloud(record) {
+  const user = requireCloudUser();
+  if (!user || !record) return;
+  const row = practiceRecordRows(user).find((item) => item.local_id === record.id);
+  if (!row) return;
+  const result = await writeRowsWithFallback("practice_records", [row], "practice_record");
+  if (result.error) {
+    setCloudMessage(`本地已保存；云端同步失败：${result.error.message}`, "error");
+    return;
+  }
+  setCloudMessage("本地已保存，并已同步到云端。", "success");
+}
+
+async function syncCustomQuestionToCloud(question) {
+  const user = requireCloudUser();
+  if (!user || !question) return;
+  const row = customQuestionRows(user).find((item) => item.question_text === question.text);
+  if (!row) return;
+  const result = await writeRowsWithFallback("custom_questions", [row], "custom_question");
+  if (result.error) setCloudMessage(`自建题已保存本地；云端同步失败：${result.error.message}`, "error");
+  else setCloudMessage("自建题已同步到云端。", "success");
+}
+
+async function syncStatusToCloud(question, value) {
+  const user = requireCloudUser();
+  if (!user || !question) return;
+  const row = {
+    user_id: user.id,
+    local_id: `manual-${stableHash(question)}`,
+    record_type: "manual_status",
+    mode: "status",
+    question_text: question,
+    score: value?.score === "" || value?.score === undefined ? null : Number(value.score),
+    payload: { question, ...value },
+    updated_at: new Date().toISOString()
+  };
+  await writeRowsWithFallback("practice_records", [row], "manual_status");
+}
+
+async function syncAttemptToCloud(question, attempt) {
+  const user = requireCloudUser();
+  if (!user || !question || !attempt) return;
+  const payload = stripLocalOnlyFields({ key: `question|${question}`, question, ...attempt });
+  const row = {
+    user_id: user.id,
+    local_id: attempt.id,
+    record_type: "attempt",
+    mode: "attempt",
+    question_text: question,
+    transcript: attempt.transcript || "",
+    actual_seconds: Number(attempt.seconds || 0),
+    payload,
+    updated_at: new Date().toISOString()
+  };
+  const result = await writeRowsWithFallback("practice_records", [row], "attempt");
+  if (result.error) setCloudMessage(`作答文字稿已保存本地；云端同步失败：${result.error.message}`, "error");
+}
+
+function extractRowPayload(row) {
+  return row.payload || row.data || row.record_data || row.question_data || row;
+}
+
+function recordFromCloudRow(row) {
+  const payload = extractRowPayload(row);
+  if (payload?.id && (payload.question || payload.childQuestions)) return { ...payload, audioSrc: "" };
+  if ((row.record_type || row.item_type || row.type) !== "history") return null;
+  return {
+    id: row.local_id || `cloud-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    time: row.created_at ? new Date(row.created_at).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "",
+    category: row.category || payload.category || "",
+    mode: row.mode || payload.mode || "practice",
+    focus: row.focus || payload.focus || "完整作答",
+    score: row.score ?? payload.score ?? 0,
+    question: row.question_text || payload.question || "",
+    transcript: row.transcript || payload.transcript || "",
+    audioSrc: "",
+    actualSeconds: row.actual_seconds ?? payload.actualSeconds ?? 0,
+    scores: row.scores || payload.scores || {},
+    labels: payload.labels || ["结构", "内容", "表达", "时间"],
+    strengths: payload.strengths || [],
+    issues: payload.issues || [],
+    checks: payload.checks || [],
+    reviewNotes: row.review_notes || payload.reviewNotes || emptyReviewNotes(),
+    childQuestions: row.child_questions || payload.childQuestions || [],
+    nextTask: payload.nextTask || "",
+    improved: payload.improved || ""
+  };
+}
+
+function customQuestionFromCloudRow(row) {
+  const payload = extractRowPayload(row);
+  if (payload?.text) return payload;
+  const text = row.question_text || payload.question_text || "";
+  if (!text) return null;
+  return {
+    category: row.category || payload.category || "综合分析",
+    difficulty: row.difficulty || payload.difficulty || "自建",
+    source: row.source || payload.source || "云端自建题",
+    text,
+    cues: row.cues || payload.cues || ["观点明确", "结构清晰"],
+    points: row.points || payload.points || []
+  };
+}
+
+function mergeCloudPracticeRows(rows) {
+  const historyMap = new Map(state.history.map((item) => [item.id, item]));
+  rows.forEach((row) => {
+    const type = row.record_type || row.item_type || row.type || extractRowPayload(row)?.record_type;
+    const payload = extractRowPayload(row);
+    if (type === "manual_status") {
+      const question = row.question_text || payload.question;
+      if (question) state.manualQuestionStatus[question] = { status: payload.status || "done", score: payload.score ?? row.score ?? "", updatedAt: payload.updatedAt || Date.now() };
+      return;
+    }
+    if (type === "review_draft") {
+      const key = payload.key || (row.question_text ? `question|${row.question_text}` : "");
+      if (key) state.reviewDrafts[key] = payload.notes || row.review_notes || emptyReviewNotes();
+      return;
+    }
+    if (type === "attempt") {
+      const key = payload.key || (row.question_text ? `question|${row.question_text}` : "");
+      if (key) {
+        const existing = state.questionAttempts[key] || [];
+        const attempt = {
+          id: row.local_id || payload.id || `cloud-attempt-${Date.now()}`,
+          name: payload.name || `${existing.length + 1}`,
+          time: payload.time || "",
+          audioSrc: "",
+          transcript: row.transcript || payload.transcript || "",
+          seconds: row.actual_seconds ?? payload.seconds ?? 0
+        };
+        if (!existing.some((item) => item.id === attempt.id)) state.questionAttempts[key] = [...existing, attempt];
+      }
+      return;
+    }
+    const record = recordFromCloudRow(row);
+    if (record?.id && !historyMap.has(record.id)) historyMap.set(record.id, record);
+  });
+  state.history = [...historyMap.values()].sort((a, b) => String(b.id).localeCompare(String(a.id))).slice(0, 100);
+  localStorage.setItem("interviewHistory", JSON.stringify(state.history));
+  localStorage.setItem("manualQuestionStatus", JSON.stringify(state.manualQuestionStatus));
+  localStorage.setItem("reviewDrafts", JSON.stringify(state.reviewDrafts));
+  localStorage.setItem("questionAttempts", JSON.stringify(state.questionAttempts));
+}
+
+function mergeCloudCustomQuestions(rows) {
+  const map = new Map(state.customQuestions.map((item) => [item.text, item]));
+  rows.forEach((row) => {
+    const question = customQuestionFromCloudRow(row);
+    if (question?.text && !map.has(question.text)) map.set(question.text, question);
+  });
+  state.customQuestions = [...map.values()];
+  localStorage.setItem("customQuestions", JSON.stringify(state.customQuestions));
+}
+
+async function syncCloudDataToLocal() {
+  const user = requireCloudUser();
+  if (!user || state.cloudBusy) return;
+  state.cloudBusy = true;
+  renderCloudAuth();
+  setCloudMessage("正在从云端同步数据...");
+  const [practiceResult, questionResult] = await Promise.all([
+    supabaseClient.from("practice_records").select("*").eq("user_id", user.id),
+    supabaseClient.from("custom_questions").select("*").eq("user_id", user.id)
+  ]);
+  if (practiceResult.error || questionResult.error) {
+    const message = practiceResult.error?.message || questionResult.error?.message || "同步失败。";
+    await writeSyncLog("cloud_to_local", "error", message);
+    setCloudMessage(`从云端同步失败：${message}`, "error");
+    state.cloudBusy = false;
+    renderCloudAuth();
+    return;
+  }
+  mergeCloudPracticeRows(practiceResult.data || []);
+  mergeCloudCustomQuestions(questionResult.data || []);
+  await writeSyncLog("cloud_to_local", "success", "从云端同步完成", {
+    practice: practiceResult.data?.length || 0,
+    customQuestions: questionResult.data?.length || 0
+  });
+  renderHistory();
+  renderMockHistory();
+  renderQuestionBank();
+  renderCurrentPracticeStatus();
+  renderSkills();
+  loadReviewDraftForCurrent();
+  setCloudMessage(`同步完成：练习相关 ${practiceResult.data?.length || 0} 条，自建题 ${questionResult.data?.length || 0} 条。`, "success");
+  state.cloudBusy = false;
+  renderCloudAuth();
 }
 
 function openQuestionBank() {
@@ -2205,6 +2803,11 @@ els.importDataInput.addEventListener("change", (event) => {
   importDataBackup(event.target.files?.[0]);
   event.target.value = "";
 });
+els.signUpBtn.addEventListener("click", signUpWithEmail);
+els.signInBtn.addEventListener("click", signInWithEmail);
+els.signOutBtn.addEventListener("click", signOut);
+els.migrateCloudBtn.addEventListener("click", migrateLocalDataToCloud);
+els.syncCloudBtn.addEventListener("click", syncCloudDataToLocal);
 els.history.addEventListener("click", (event) => {
   const button = event.target.closest("[data-history-id]");
   if (button) openHistoryDetail(button.dataset.historyId);
@@ -2244,3 +2847,4 @@ renderHistory();
 renderMockHistory();
 renderSkills();
 updateTimer();
+initSupabaseAuth();

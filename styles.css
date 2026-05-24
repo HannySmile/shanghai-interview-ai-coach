@@ -342,6 +342,36 @@ textarea:focus {
   gap: 10px;
 }
 
+.cloud-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.cloud-auth-form {
+  display: grid;
+  gap: 10px;
+}
+
+.cloud-auth-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#cloudMessage {
+  min-height: 18px;
+}
+
+#cloudMessage[data-tone="success"] {
+  color: var(--accent-strong);
+}
+
+#cloudMessage[data-tone="error"] {
+  color: var(--red);
+}
+
 .helper-text {
   margin: 10px 0 0;
   color: var(--muted);
