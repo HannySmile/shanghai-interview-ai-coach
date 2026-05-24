@@ -511,12 +511,39 @@ const state = {
   deletedQuestionTexts: JSON.parse(localStorage.getItem("deletedQuestionTexts") || "[]"),
   manualQuestionStatus: JSON.parse(localStorage.getItem("manualQuestionStatus") || "{}"),
   reviewDrafts: JSON.parse(localStorage.getItem("reviewDrafts") || "{}"),
+  recordTags: JSON.parse(localStorage.getItem("recordTags") || "{}"),
   questionAttempts: JSON.parse(localStorage.getItem("questionAttempts") || "{}"),
   reviewSaveTimer: null,
+  activePage: "dashboard",
+  lastSyncAt: localStorage.getItem("lastSyncTime") || "",
   history: JSON.parse(localStorage.getItem("interviewHistory") || "[]")
 };
 
 const els = {
+  pages: document.querySelectorAll(".page-view"),
+  navButtons: document.querySelectorAll("[data-page]"),
+  pageLinks: document.querySelectorAll("[data-page-link]"),
+  dashboardPage: document.querySelector("#dashboardPage"),
+  practicePage: document.querySelector("#practicePage"),
+  reviewPage: document.querySelector("#reviewPage"),
+  dataPage: document.querySelector("#dataPage"),
+  sidebarSyncStatus: document.querySelector("#sidebarSyncStatus"),
+  sidebarSyncDetail: document.querySelector("#sidebarSyncDetail"),
+  dashboardSyncStatus: document.querySelector("#dashboardSyncStatus"),
+  dashboardSyncHint: document.querySelector("#dashboardSyncHint"),
+  todayRecommendationTitle: document.querySelector("#todayRecommendationTitle"),
+  todayRecommendationText: document.querySelector("#todayRecommendationText"),
+  weeklyPracticeCount: document.querySelector("#weeklyPracticeCount"),
+  weeklyPracticeHint: document.querySelector("#weeklyPracticeHint"),
+  latestScore: document.querySelector("#latestScore"),
+  latestScoreHint: document.querySelector("#latestScoreHint"),
+  continuePracticeBtn: document.querySelector("#continuePracticeBtn"),
+  lastSyncTime: document.querySelector("#lastSyncTime"),
+  reviewCategoryFilter: document.querySelector("#reviewCategoryFilter"),
+  reviewScoreFilter: document.querySelector("#reviewScoreFilter"),
+  reviewDateFilter: document.querySelector("#reviewDateFilter"),
+  reviewRecordCount: document.querySelector("#reviewRecordCount"),
+  reviewRecordsList: document.querySelector("#reviewRecordsList"),
   fileModeNotice: document.querySelector("#fileModeNotice"),
   modeButtons: document.querySelectorAll("[data-mode]"),
   mockViewButtons: document.querySelectorAll("[data-mock-view]"),
@@ -614,9 +641,6 @@ const els = {
 
 if (location.protocol === "file:") {
   els.fileModeNotice.hidden = false;
-  setTimeout(() => {
-    location.href = "http://127.0.0.1:4199/";
-  }, 900);
 }
 
 state.history = state.history.map((item, index) => ({
@@ -638,6 +662,82 @@ state.history = state.history.map((item, index) => ({
   improved: item.improved || "",
   ...item
 }));
+
+function setPage(page) {
+  state.activePage = page;
+  els.pages.forEach((section) => {
+    const id = section.id;
+    const matches = (page === "dashboard" && id === "dashboardPage")
+      || (page === "practice" && id === "practicePage")
+      || (page === "bank" && id === "questionBankPage")
+      || (page === "review" && id === "reviewPage")
+      || (page === "data" && id === "dataPage");
+    section.hidden = !matches;
+  });
+  els.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.page === page));
+  if (page === "dashboard") renderDashboard();
+  if (page === "bank") renderQuestionBank();
+  if (page === "review") renderReviewPage();
+  if (page === "data") renderCloudAuth();
+}
+
+function renderDashboard() {
+  const latest = state.history[0];
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weekly = state.history.filter((item) => timestampFromRecord(item) >= weekAgo).length;
+  els.weeklyPracticeCount.textContent = `${weekly} 次`;
+  els.weeklyPracticeHint.textContent = weekly ? "最近 7 天完成的有效答题记录" : "完成一次答题后自动更新";
+  els.latestScore.textContent = latest ? `${latest.score}` : "--";
+  els.latestScoreHint.textContent = latest ? `${latest.time} · ${latest.category}` : "暂无练习记录";
+  const next = getRecommendedQuestion();
+  if (next) {
+    els.todayRecommendationTitle.textContent = `${next.category} · ${next.difficulty || "训练"}`;
+    els.todayRecommendationText.textContent = next.text;
+  }
+  renderSyncSummary();
+  renderHistory();
+  renderMockHistory();
+  renderSkills();
+}
+
+function timestampFromRecord(item) {
+  const idTime = String(item.id || "").match(/record-(\d+)/)?.[1];
+  return idTime ? Number(idTime) : 0;
+}
+
+function getRecommendedQuestion() {
+  const all = getAllQuestions();
+  const unpracticed = all.filter((q) => !findLatestPractice(q.text));
+  return unpracticed[0] || all[0];
+}
+
+function openRecommendedPractice() {
+  const q = getRecommendedQuestion();
+  if (q) {
+    const all = getAllQuestions();
+    const index = all.findIndex((item) => item.text === q.text);
+    if (index >= 0) {
+      loadQuestionFromBank(index);
+      return;
+    }
+  }
+  setMode("practice");
+}
+
+function renderSyncSummary() {
+  const loggedIn = Boolean(state.user);
+  const status = loggedIn ? "云端可同步" : "本地保存";
+  const detail = loggedIn
+    ? (state.lastSyncAt ? `最后同步：${state.lastSyncAt}` : "登录成功，完成练习后会尝试同步")
+    : "未登录，记录会保留在当前浏览器";
+  [els.sidebarSyncStatus, els.dashboardSyncStatus].forEach((node) => {
+    if (node) node.textContent = status;
+  });
+  [els.sidebarSyncDetail, els.dashboardSyncHint].forEach((node) => {
+    if (node) node.textContent = detail;
+  });
+  if (els.lastSyncTime) els.lastSyncTime.textContent = `最后同步：${state.lastSyncAt || "暂无"}`;
+}
 
 function pickQuestion() {
   persistReviewNotes({ silent: true });
@@ -860,18 +960,18 @@ function setMode(mode) {
   els.modeButtons.forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
   els.mockViewButtons.forEach((button) => button.classList.toggle("active", button.dataset.mockView === state.mockViewMode));
   const isBank = mode === "bank";
-  els.topbar.hidden = isBank;
-  els.questionBand.hidden = isBank;
-  els.trainingGrid.hidden = isBank;
-  els.questionBankPage.hidden = !isBank;
+  if (isBank) {
+    resetSession();
+    setPage("bank");
+    return;
+  }
+  setPage("practice");
+  els.topbar.hidden = false;
+  els.questionBand.hidden = false;
+  els.trainingGrid.hidden = false;
   els.mockViewField.hidden = mode !== "mock";
   els.categoryField.hidden = mode === "mock" || isBank;
   els.focusField.hidden = true;
-  if (isBank) {
-    resetSession();
-    renderQuestionBank();
-    return;
-  }
   els.think.value = 60;
   els.answer.value = mode === "mock" ? 720 : 180;
   if (mode === "professional") els.category.value = "专业题";
@@ -1095,7 +1195,7 @@ async function startRecording(options = {}) {
   const saveAttemptOnStop = options.saveAttemptOnStop !== false;
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     const message = location.protocol === "file:"
-      ? "文件模式不支持录音，请用 http://127.0.0.1:4199/ 打开"
+      ? "文件模式不支持录音，请使用本地服务或线上地址打开"
       : "当前浏览器没有开放录音接口，建议用 Chrome/Safari 打开本地地址";
     els.recordStatus.textContent = message;
     return false;
@@ -1757,7 +1857,21 @@ function clearFeedback() {
   Object.values(els.scores).forEach((node) => {
     node.textContent = "--";
   });
-  els.feedback.innerHTML = "";
+  renderFrameworkHint();
+}
+
+function renderFrameworkHint() {
+  const q = state.current || {};
+  const framework = categoryFrameworks[q.category] || categoryFrameworks.综合分析;
+  els.feedback.innerHTML = `
+    <div class="detail-block">
+      <h3>${framework.name}</h3>
+      <ul>
+        ${framework.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+      </ul>
+    </div>
+    <p class="helper-text">结束答题后会只保留分数与本题复盘入口；具体深度点评可用“复制给 ChatGPT”。</p>
+  `;
 }
 
 function markFeedbackStale() {
@@ -1830,6 +1944,8 @@ function saveHistory(analysis) {
   localStorage.setItem("interviewHistory", JSON.stringify(state.history));
   renderHistory();
   renderMockHistory();
+  renderDashboard();
+  if (state.activePage === "review") renderReviewPage();
   renderCurrentPracticeStatus();
   syncRecordToCloud(item);
 }
@@ -1859,6 +1975,85 @@ function renderMockHistory() {
       <span>${item.time} · ${item.source || "正式模拟"}</span>
     </button>
   `).join("") || `<div class="history-item"><strong>暂无记录</strong><p>完成正式模拟后，这里会保存题目、用时、答案、分数和录音。</p></div>`;
+}
+
+function renderReviewPage() {
+  populateReviewCategoryFilter();
+  const items = filterReviewRecords();
+  els.reviewRecordCount.textContent = `${items.length} 条`;
+  els.reviewRecordsList.innerHTML = items.map((item) => {
+    const tags = state.recordTags[item.id] || [];
+    const tagButtons = reviewTagOptions().map((tag) => `
+      <button class="tag-toggle ${tags.includes(tag) ? "active" : ""}" type="button" data-review-tag="${tag}" data-review-id="${item.id}">${tag}</button>
+    `).join("");
+    return `
+      <article class="review-record-card">
+        <div class="review-record-head">
+          <div>
+            <strong>${item.score} 分 · ${item.category}</strong>
+            <span>${item.time} · ${modeName(item.mode)}${item.actualSeconds ? ` · ${formatTime(item.actualSeconds)}` : ""}</span>
+          </div>
+          <button class="secondary" type="button" data-history-id="${item.id}">查看详情</button>
+        </div>
+        <h3>${escapeHtml(item.question)}</h3>
+        <p class="readonly-text">${escapeHtml((item.transcript || "暂无文字稿").slice(0, 260))}</p>
+        <div class="tag-row">${tagButtons}</div>
+        <div class="detail-block">
+          <h3>我的复盘</h3>
+          <p class="readonly-text">${escapeHtml(reviewNoteToText(item.reviewNotes) || "未填写")}</p>
+        </div>
+        <div class="next-suggestion">${escapeHtml(buildRecordSuggestion(item, tags))}</div>
+      </article>
+    `;
+  }).join("") || `<div class="detail-block"><h3>暂无复盘记录</h3><p>完成一次练习后，这里会沉淀文字稿、录音、分数和你的复盘。</p></div>`;
+}
+
+function reviewTagOptions() {
+  return ["审题问题", "结构问题", "内容空泛", "表达卡顿", "时间超时"];
+}
+
+function populateReviewCategoryFilter() {
+  const current = els.reviewCategoryFilter?.value || "all";
+  const categories = [...new Set(state.history.map((item) => item.category).filter(Boolean))];
+  if (!els.reviewCategoryFilter) return;
+  els.reviewCategoryFilter.innerHTML = `<option value="all">全部题型</option>${categories.map((category) => `<option value="${category}">${category}</option>`).join("")}`;
+  els.reviewCategoryFilter.value = categories.includes(current) ? current : "all";
+}
+
+function filterReviewRecords() {
+  const category = els.reviewCategoryFilter?.value || "all";
+  const score = els.reviewScoreFilter?.value || "all";
+  const date = els.reviewDateFilter?.value || "all";
+  const now = Date.now();
+  return state.history.filter((item) => {
+    if (category !== "all" && item.category !== category) return false;
+    const numeric = Number(item.score);
+    if (score === "lt60" && !(numeric < 60)) return false;
+    if (score === "60-79" && !(numeric >= 60 && numeric < 80)) return false;
+    if (score === "gte80" && !(numeric >= 80)) return false;
+    const timestamp = timestampFromRecord(item);
+    if (date === "week" && (!timestamp || timestamp < now - 7 * 24 * 60 * 60 * 1000)) return false;
+    if (date === "month" && (!timestamp || timestamp < now - 30 * 24 * 60 * 60 * 1000)) return false;
+    return true;
+  });
+}
+
+function toggleRecordTag(recordId, tag) {
+  const current = state.recordTags[recordId] || [];
+  state.recordTags[recordId] = current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag];
+  localStorage.setItem("recordTags", JSON.stringify(state.recordTags));
+  renderReviewPage();
+}
+
+function buildRecordSuggestion(item, tags = []) {
+  if (tags.includes("审题问题")) return "下一次先用 20 秒复述题干矛盾，再展开作答。";
+  if (tags.includes("结构问题")) return "下一次固定使用“表态-分析-对策-收束”或对应题型流程。";
+  if (tags.includes("内容空泛")) return "下一次每一层至少补一个具体抓手，如清单、节点、责任人、回访。";
+  if (tags.includes("表达卡顿")) return "下一次把长句拆短，先说序号词，再说中心句。";
+  if (tags.includes("时间超时")) return "下一次每题开头不超过 15 秒，主体控制在 3 个点以内。";
+  if (Number(item.score) < 60) return "建议下一次只练审题和框架，不急着完整铺开。";
+  if (Number(item.score) < 80) return "建议下一次保留当前结构，重点补具体案例和执行抓手。";
+  return "这次基础不错，下一次可以练更自然的开头和更有岗位感的收束。";
 }
 
 function modeName(mode) {
@@ -1948,14 +2143,14 @@ function renderReviewNotes(notes = emptyReviewNotes()) {
 }
 
 function renderSkills() {
-  const base = { 审题: 58, 框架: 62, 内容: 56, 表达: 60, 时间: 64 };
+  const base = { 结构: 62, 内容: 56, 表达: 60, 时间: 64, 岗位匹配: 58 };
   state.history.forEach((item) => {
     const boost = Math.max(0, item.score - 60) / 8;
-    base.审题 += boost;
-    if (item.focus.includes("框架")) base.框架 += boost * 1.5;
+    base.结构 += boost;
     if (item.focus.includes("内容")) base.内容 += boost * 1.5;
     if (item.focus.includes("表达")) base.表达 += boost * 1.5;
     base.时间 += boost * 0.7;
+    if (item.category === "岗位匹配" || item.question?.includes("岗位") || item.question?.includes("报考")) base.岗位匹配 += boost * 1.4;
   });
   els.skillList.innerHTML = Object.entries(base).map(([name, value]) => {
     const score = Math.round(clamp(value, 45, 92));
@@ -2183,6 +2378,7 @@ function persistReviewNotes(options = {}) {
     record.reviewNotes = notes;
     localStorage.setItem("interviewHistory", JSON.stringify(state.history));
     renderHistory();
+    if (state.activePage === "review") renderReviewPage();
     syncRecordToCloud(record);
   }
 }
@@ -2203,10 +2399,12 @@ const backupStorageKeys = [
   "interviewHistory",
   "manualQuestionStatus",
   "reviewDrafts",
+  "recordTags",
   "questionAttempts",
   "customQuestions",
   "deletedQuestionTexts",
-  "preferredMaleVoiceName"
+  "preferredMaleVoiceName",
+  "lastSyncTime"
 ];
 
 function exportDataBackup() {
@@ -2260,6 +2458,11 @@ function setCloudMessage(message, tone = "muted") {
   if (!els.cloudMessage) return;
   els.cloudMessage.textContent = message || "";
   els.cloudMessage.dataset.tone = tone;
+  if (tone === "success" && message.includes("云端")) {
+    state.lastSyncAt = new Date().toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    localStorage.setItem("lastSyncTime", state.lastSyncAt);
+  }
+  renderSyncSummary();
 }
 
 function renderCloudAuth() {
@@ -2278,6 +2481,7 @@ function renderCloudAuth() {
   els.migrateCloudBtn.disabled = !loggedIn || state.cloudBusy;
   els.syncCloudBtn.disabled = !loggedIn || state.cloudBusy;
   els.testCloudWriteBtn.disabled = !loggedIn || state.cloudBusy;
+  renderSyncSummary();
 }
 
 async function initSupabaseAuth() {
@@ -2909,6 +3113,8 @@ async function syncCloudDataToLocal() {
   renderQuestionBank();
   renderCurrentPracticeStatus();
   renderSkills();
+  renderDashboard();
+  renderReviewPage();
   loadReviewDraftForCurrent();
   setCloudMessage(`同步完成：练习相关 ${practiceResult.data?.length || 0} 条，自建题 ${questionResult.data?.length || 0} 条。`, "success");
   state.cloudBusy = false;
@@ -2926,13 +3132,16 @@ function loadQuestionFromBank(index) {
   if (!q) return;
   persistReviewNotes({ silent: true });
   const mode = q.bank === "real" ? "real" : q.bank === "professional" ? "professional" : "practice";
+  setPage("practice");
   state.mode = mode;
   document.body.dataset.mode = mode;
   els.modeButtons.forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
   els.topbar.hidden = false;
   els.questionBand.hidden = false;
   els.trainingGrid.hidden = false;
-  els.questionBankPage.hidden = true;
+  els.mockViewField.hidden = mode !== "mock";
+  els.categoryField.hidden = mode === "mock";
+  els.focusField.hidden = true;
   updateStartButtonText();
   els.category.value = q.category;
   els.category.disabled = mode === "mock" || mode === "professional";
@@ -2947,6 +3156,24 @@ function loadQuestionFromBank(index) {
   if (els.questionBankDialog?.open) els.questionBankDialog.close();
 }
 
+els.navButtons.forEach((button) => button.addEventListener("click", () => {
+  const page = button.dataset.page;
+  if (page === "practice" && state.mode === "bank") setMode("practice");
+  else setPage(page);
+}));
+els.pageLinks.forEach((button) => button.addEventListener("click", () => setPage(button.dataset.pageLink)));
+document.querySelectorAll("[data-dashboard-start]").forEach((button) => button.addEventListener("click", openRecommendedPractice));
+els.continuePracticeBtn.addEventListener("click", () => {
+  const latest = state.history[0];
+  if (!latest) {
+    openRecommendedPractice();
+    return;
+  }
+  const all = getAllQuestions();
+  const index = all.findIndex((q) => q.text === latest.question || (latest.childQuestions || []).some((child) => child.question === q.text));
+  if (index >= 0) loadQuestionFromBank(index);
+  else setMode(latest.mode || "practice");
+});
 els.modeButtons.forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
 els.mockViewButtons.forEach((button) => button.addEventListener("click", () => setMockViewMode(button.dataset.mockView)));
 els.category.addEventListener("change", pickQuestion);
@@ -2982,6 +3209,8 @@ els.clearHistory.addEventListener("click", () => {
   renderHistory();
   renderMockHistory();
   renderSkills();
+  renderDashboard();
+  renderReviewPage();
 });
 els.exportData.addEventListener("click", exportDataBackup);
 els.importData.addEventListener("click", () => els.importDataInput.click());
@@ -3008,7 +3237,7 @@ els.attemptList.addEventListener("click", (event) => {
   if (button) deleteAttempt(button.dataset.attemptId);
 });
 els.closeHistoryDialogBtn.addEventListener("click", () => els.historyDialog.close());
-els.questionBankBtn.addEventListener("click", () => setMode("bank"));
+els.questionBankBtn.addEventListener("click", () => setPage("bank"));
 els.addQuestionForm.addEventListener("submit", addCustomQuestion);
 [
   els.bankSearch,
@@ -3018,6 +3247,20 @@ els.addQuestionForm.addEventListener("submit", addCustomQuestion);
   els.bankScore
 ].forEach((control) => control.addEventListener("input", renderQuestionBank));
 els.bankReset.addEventListener("click", resetBankFilters);
+[
+  els.reviewCategoryFilter,
+  els.reviewScoreFilter,
+  els.reviewDateFilter
+].forEach((control) => control.addEventListener("input", renderReviewPage));
+els.reviewRecordsList.addEventListener("click", (event) => {
+  const tagButton = event.target.closest("[data-review-tag]");
+  if (tagButton) {
+    toggleRecordTag(tagButton.dataset.reviewId, tagButton.dataset.reviewTag);
+    return;
+  }
+  const historyButton = event.target.closest("[data-history-id]");
+  if (historyButton) openHistoryDetail(historyButton.dataset.historyId);
+});
 els.questionBankContent.addEventListener("click", (event) => {
   const saveButton = event.target.closest("[data-manual-save]");
   if (saveButton) {
@@ -3029,9 +3272,13 @@ els.questionBankContent.addEventListener("click", (event) => {
   const deleteButton = event.target.closest("[data-question-delete-index]");
   if (deleteButton) deleteQuestionFromBank(Number(deleteButton.dataset.questionDeleteIndex));
 });
+setPage("dashboard");
 setMode("mock");
+setPage("dashboard");
 renderHistory();
 renderMockHistory();
 renderSkills();
+renderDashboard();
+renderReviewPage();
 updateTimer();
 initSupabaseAuth();

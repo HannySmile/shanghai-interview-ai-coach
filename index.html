@@ -8,167 +8,311 @@
   </head>
   <body>
     <main class="app-shell">
-      <aside class="sidebar" aria-label="训练设置">
+      <aside class="sidebar" aria-label="主导航">
         <div class="brand">
           <div class="brand-mark">沪</div>
           <div>
             <h1>事业编面试陪练</h1>
-            <p>上海结构化面试训练台</p>
+            <p>上海结构化面试训练系统</p>
           </div>
         </div>
 
-        <section class="panel">
-          <h2>训练模式</h2>
-          <div class="segmented" role="group" aria-label="训练模式">
-            <button class="segment active" data-mode="mock" type="button">正式模拟</button>
-            <button class="segment" data-mode="practice" type="button">专项训练</button>
-            <button class="segment" data-mode="real" type="button">真题训练</button>
-            <button class="segment" data-mode="professional" type="button">专业题</button>
-            <button class="segment" data-mode="bank" type="button">全部题目</button>
-          </div>
+        <nav class="main-nav" aria-label="页面导航">
+          <button class="nav-item active" data-page="dashboard" type="button">
+            <span>首页</span>
+            <small>Dashboard</small>
+          </button>
+          <button class="nav-item" data-page="practice" type="button">
+            <span>练习</span>
+            <small>Practice</small>
+          </button>
+          <button class="nav-item" data-page="bank" type="button">
+            <span>题库</span>
+            <small>Question Bank</small>
+          </button>
+          <button class="nav-item" data-page="review" type="button">
+            <span>复盘</span>
+            <small>Review</small>
+          </button>
+          <button class="nav-item" data-page="data" type="button">
+            <span>数据</span>
+            <small>Data Sync</small>
+          </button>
+        </nav>
 
-          <div class="field" id="mockViewField">
-            <span>模拟方式</span>
-            <div class="segmented mock-view-toggle" role="group" aria-label="正式模拟方式">
-              <button class="segment active" data-mock-view="listen" type="button">听题模式</button>
-              <button class="segment" data-mock-view="read" type="button">看题模式</button>
-            </div>
-          </div>
-
-          <label class="field" id="categoryField">
-            <span>题型</span>
-            <select id="categorySelect">
-              <option value="all">全部题型</option>
-              <option value="综合分析">综合分析</option>
-              <option value="组织管理">组织管理</option>
-              <option value="应急应变">应急应变</option>
-              <option value="人际沟通">人际沟通</option>
-              <option value="岗位匹配">岗位匹配</option>
-              <option value="专业题">专业题</option>
-            </select>
-          </label>
-
-          <label class="field" id="focusField" hidden>
-            <span></span>
-            <select id="focusSelect">
-              <option value="完整作答">完整作答</option>
-              <option value="审题破题">审题破题</option>
-              <option value="答题框架">答题框架</option>
-              <option value="内容要点">内容要点</option>
-              <option value="表达逻辑">表达逻辑</option>
-              <option value="开头结尾">开头结尾</option>
-            </select>
-          </label>
-
-          <div class="time-grid">
-            <label class="field">
-              <span>思考</span>
-              <input id="thinkInput" type="number" min="10" max="180" step="5" value="60" />
-            </label>
-            <label class="field">
-              <span>答题</span>
-              <input id="answerInput" type="number" min="30" max="420" step="15" value="180" />
-            </label>
-          </div>
-
-          <label class="toggle">
-            <input id="silentToggle" type="checkbox" checked />
-            <span>答题期间 AI 静默，不因停顿打断</span>
-          </label>
-        </section>
-
-        <section class="panel compact">
-          <h2>能力画像</h2>
-          <div class="skill-list" id="skillList"></div>
-        </section>
-
-        <section class="panel compact">
-          <h2>题库总览</h2>
-          <button id="questionBankBtn" class="secondary wide" type="button">查看全部题目</button>
-        </section>
-
-        <section class="panel compact">
-          <h2>数据备份</h2>
-          <div class="backup-grid">
-            <button id="exportDataBtn" class="secondary" type="button">导出数据</button>
-            <button id="importDataBtn" class="ghost" type="button">导入数据</button>
-          </div>
-          <input id="importDataInput" type="file" accept="application/json,.json" hidden />
-          <p class="helper-text">建议每次重要练习后导出一次，录音、文字稿、分数、题目状态和复盘都会一起保存。</p>
-        </section>
-
-        <section class="panel compact cloud-panel">
-          <h2>云端同步</h2>
-          <p id="cloudStatus" class="helper-text">未登录，当前只保存到本地。</p>
-          <div id="authForm" class="cloud-auth-form">
-            <label>
-              <span>邮箱</span>
-              <input id="authEmail" type="email" autocomplete="email" placeholder="输入邮箱" />
-            </label>
-            <label>
-              <span>密码</span>
-              <input id="authPassword" type="password" autocomplete="current-password" placeholder="至少 6 位" />
-            </label>
-            <div class="backup-grid">
-              <button id="signInBtn" class="secondary" type="button">登录</button>
-              <button id="signUpBtn" class="ghost" type="button">注册</button>
-            </div>
-          </div>
-          <div class="backup-grid">
-            <button id="migrateCloudBtn" class="secondary" type="button">迁移本地数据到云端</button>
-            <button id="syncCloudBtn" class="ghost" type="button">从云端同步数据</button>
-          </div>
-          <button id="testCloudWriteBtn" class="secondary wide" type="button">测试云端写入</button>
-          <button id="signOutBtn" class="ghost wide" type="button" hidden>退出登录</button>
-          <p id="cloudMessage" class="helper-text"></p>
-        </section>
-
-        <section class="panel compact">
-          <div class="history-head slim">
-            <h2>模拟练习记录</h2>
-            <span id="mockHistoryCount">暂无</span>
-          </div>
-          <div id="mockHistoryList" class="sidebar-history"></div>
-        </section>
-
-        <section class="panel compact">
-          <div class="history-head slim">
-            <h2>训练记录</h2>
-            <button id="clearHistoryBtn" class="ghost" type="button">清空</button>
-          </div>
-          <div id="historyList" class="sidebar-history"></div>
+        <section class="side-card sync-summary">
+          <p class="eyebrow">同步状态</p>
+          <strong id="sidebarSyncStatus">本地保存</strong>
+          <span id="sidebarSyncDetail">登录后可同步到云端</span>
         </section>
       </aside>
 
       <section class="workspace">
         <div id="fileModeNotice" class="notice" hidden>
-          当前是直接打开 HTML 的文件模式，录音和语音识别可能不可用。请使用
-          <a href="http://127.0.0.1:4199/">http://127.0.0.1:4199/</a>
-          打开可录音版本。
+          当前是直接打开 HTML 的文件模式，录音和语音识别可能不可用。请使用本地服务或线上地址打开。
         </div>
 
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">今日训练</p>
-            <h2 id="sessionTitle">正式模拟 · 综合分析</h2>
-          </div>
-          <div class="top-actions">
-            <button id="speakBtn" class="icon-button" type="button" title="朗读题目" aria-label="朗读题目">▶</button>
-            <button id="newQuestionBtn" class="secondary" type="button">换一题</button>
-          </div>
-        </header>
-
-        <section id="questionBankPage" class="question-bank-page" hidden>
-          <div class="page-panel">
-            <div class="feedback-header">
-              <div>
-                <p class="eyebrow">题库管理</p>
-                <h2>全部训练题目</h2>
-              </div>
+        <section id="dashboardPage" class="page-view dashboard-page">
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">训练仪表盘</p>
+              <h2>今天从一轮可复盘的练习开始</h2>
             </div>
+            <div class="top-actions">
+              <button class="primary" data-dashboard-start type="button">开始推荐训练</button>
+                <button id="questionBankBtn" class="secondary" data-page-link="bank" type="button">查看题库</button>
+            </div>
+          </header>
 
+          <section class="dashboard-grid">
+            <article class="hero-card">
+              <p class="eyebrow">今日推荐训练</p>
+              <h3 id="todayRecommendationTitle">正式模拟 · 三题套卷</h3>
+              <p id="todayRecommendationText">按 12 分钟流程完成一套题，结束后整理复盘。</p>
+              <div class="quick-actions">
+                <button class="primary" data-dashboard-start type="button">进入练习</button>
+                <button class="ghost" id="continuePracticeBtn" type="button">继续上次练习</button>
+              </div>
+            </article>
+
+            <article class="metric-card">
+              <p>本周训练进度</p>
+              <strong id="weeklyPracticeCount">0 次</strong>
+              <span id="weeklyPracticeHint">完成一次答题后自动更新</span>
+            </article>
+
+            <article class="metric-card">
+              <p>最近分数</p>
+              <strong id="latestScore">--</strong>
+              <span id="latestScoreHint">暂无练习记录</span>
+            </article>
+
+            <article class="metric-card">
+              <p>数据同步状态</p>
+              <strong id="dashboardSyncStatus">本地保存</strong>
+              <span id="dashboardSyncHint">登录后可同步到云端</span>
+            </article>
+          </section>
+
+          <section class="content-grid two-col">
+            <article class="panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">能力画像</p>
+                  <h3>五项能力趋势</h3>
+                </div>
+              </div>
+              <div class="skill-list" id="skillList"></div>
+            </article>
+
+            <article class="panel">
+              <div class="section-title">
+                <div>
+                  <p class="eyebrow">最近训练记录</p>
+                  <h3>继续复盘</h3>
+                </div>
+                <button class="ghost" data-page-link="review" type="button">全部记录</button>
+              </div>
+              <div id="historyList" class="record-list compact-list"></div>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">正式模拟记录</p>
+                <h3>模拟练习</h3>
+              </div>
+              <span id="mockHistoryCount">暂无</span>
+            </div>
+            <div id="mockHistoryList" class="record-list compact-list"></div>
+          </section>
+        </section>
+
+        <section id="practicePage" class="page-view" hidden>
+          <header class="page-header topbar">
+            <div>
+              <p class="eyebrow">当前练习</p>
+              <h2 id="sessionTitle">正式模拟 · 综合分析</h2>
+            </div>
+            <div class="top-actions">
+              <button id="speakBtn" class="icon-button" type="button" title="朗读题目" aria-label="朗读题目">▶</button>
+              <button id="newQuestionBtn" class="secondary" type="button">换一题</button>
+            </div>
+          </header>
+
+          <section class="practice-layout">
+            <aside class="practice-controls panel">
+              <h3>训练设置</h3>
+              <div class="segmented" role="group" aria-label="训练模式">
+                <button class="segment active" data-mode="mock" type="button">正式模拟</button>
+                <button class="segment" data-mode="practice" type="button">专项训练</button>
+                <button class="segment" data-mode="real" type="button">真题训练</button>
+                <button class="segment" data-mode="professional" type="button">专业题</button>
+                <button class="segment" data-mode="bank" type="button">全部题目</button>
+              </div>
+
+              <div class="field" id="mockViewField">
+                <span>模拟方式</span>
+                <div class="segmented mock-view-toggle" role="group" aria-label="正式模拟方式">
+                  <button class="segment active" data-mock-view="listen" type="button">听题模式</button>
+                  <button class="segment" data-mock-view="read" type="button">看题模式</button>
+                </div>
+              </div>
+
+              <label class="field" id="categoryField">
+                <span>题型</span>
+                <select id="categorySelect">
+                  <option value="all">全部题型</option>
+                  <option value="综合分析">综合分析</option>
+                  <option value="组织管理">组织管理</option>
+                  <option value="应急应变">应急应变</option>
+                  <option value="人际沟通">人际沟通</option>
+                  <option value="岗位匹配">岗位匹配</option>
+                  <option value="专业题">专业题</option>
+                </select>
+              </label>
+
+              <label class="field" id="focusField" hidden>
+                <span></span>
+                <select id="focusSelect">
+                  <option value="完整作答">完整作答</option>
+                  <option value="审题破题">审题破题</option>
+                  <option value="答题框架">答题框架</option>
+                  <option value="内容要点">内容要点</option>
+                  <option value="表达逻辑">表达逻辑</option>
+                  <option value="开头结尾">开头结尾</option>
+                </select>
+              </label>
+
+              <div class="time-grid">
+                <label class="field">
+                  <span>思考</span>
+                  <input id="thinkInput" type="number" min="10" max="180" step="5" value="60" />
+                </label>
+                <label class="field">
+                  <span>答题</span>
+                  <input id="answerInput" type="number" min="30" max="420" step="15" value="180" />
+                </label>
+              </div>
+
+              <label class="toggle">
+                <input id="silentToggle" type="checkbox" checked />
+                <span>答题期间 AI 静默，不因停顿打断</span>
+              </label>
+            </aside>
+
+            <section class="practice-main">
+              <section class="question-band">
+                <div class="question-meta">
+                  <span id="questionType">综合分析</span>
+                  <span id="questionDifficulty">标准</span>
+                  <span id="questionSource">上海治理场景</span>
+                </div>
+                <div id="questionText"></div>
+                <div class="cue-row" id="cueRow"></div>
+                <div class="current-status-panel" aria-label="当前题目练习状态">
+                  <span id="currentPracticeStatus">练习状态：未练习</span>
+                  <div>
+                    <button id="markCurrentDoneBtn" class="secondary" type="button">标为已练</button>
+                    <button id="markCurrentTodoBtn" class="ghost" type="button">标为未练</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="training-grid">
+                <div class="coach-panel">
+                  <div class="timer-card" id="timerCard">
+                    <div>
+                      <p id="phaseLabel">准备开始</p>
+                      <strong id="timerDisplay">00:00</strong>
+                    </div>
+                    <div class="phase-track" aria-hidden="true">
+                      <span id="phaseProgress"></span>
+                    </div>
+                  </div>
+
+                  <div class="control-grid">
+                    <button id="startBtn" class="primary" type="button">开始模拟</button>
+                    <button id="answerNowBtn" class="secondary" type="button">开始答题</button>
+                    <button id="finishBtn" class="danger" type="button" disabled>结束答题</button>
+                    <button id="resetBtn" class="secondary" type="button">重置</button>
+                  </div>
+
+                  <div class="recording-box">
+                    <div class="recording-state">
+                      <span class="dot" id="recordDot"></span>
+                      <span id="recordStatus">未录音</span>
+                    </div>
+                    <button id="micTestBtn" class="secondary" type="button">测试麦克风权限</button>
+                    <audio id="audioPlayback" controls></audio>
+                  </div>
+
+                  <label class="transcript-field">
+                    <span>回答文字稿</span>
+                    <textarea id="transcriptInput" placeholder="可直接粘贴你的回答；如果浏览器支持语音识别，开始答题后会自动尝试转写。"></textarea>
+                  </label>
+
+                  <section class="attempts-panel">
+                    <div class="history-head slim">
+                      <h2>作答记录</h2>
+                      <span id="attemptCount">暂无记录</span>
+                    </div>
+                    <div id="attemptList" class="attempt-list"></div>
+                  </section>
+                </div>
+
+                <div class="feedback-panel">
+                  <div class="feedback-header">
+                    <div>
+                      <p class="eyebrow">答题框架提示</p>
+                      <h2 id="scoreTitle">完成一次答题后生成点评</h2>
+                    </div>
+                    <div class="top-actions">
+                      <button id="chatgptPromptBtn" class="secondary" type="button">复制给 ChatGPT</button>
+                      <button id="reviewBtn" class="secondary" type="button">立即点评</button>
+                    </div>
+                  </div>
+
+                  <div class="score-strip">
+                    <div><span>结构</span><strong id="structureScore">--</strong></div>
+                    <div><span>内容</span><strong id="contentScore">--</strong></div>
+                    <div><span>表达</span><strong id="expressionScore">--</strong></div>
+                    <div><span>时间</span><strong id="timeScore">--</strong></div>
+                  </div>
+
+                  <div id="feedbackContent" class="feedback-content">
+                    <p>先完成一次作答。系统会保存记录、更新题库状态，并进入复盘区。</p>
+                  </div>
+
+                  <section class="review-notes-panel">
+                    <div class="history-head slim">
+                      <h2>本题复盘</h2>
+                      <button id="saveReviewNotesBtn" class="ghost" type="button">自动保存</button>
+                    </div>
+                    <label class="transcript-field">
+                      <span>我的复盘</span>
+                      <textarea id="noteReview" placeholder="把点评后的思路、框架、开头、主体和结尾整理到这里。"></textarea>
+                    </label>
+                  </section>
+                </div>
+              </section>
+            </section>
+          </section>
+        </section>
+
+        <section id="questionBankPage" class="page-view question-bank-page" hidden>
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">题库管理</p>
+              <h2>全部训练题目</h2>
+            </div>
+            <button class="primary" data-page-link="practice" type="button">去练习</button>
+          </header>
+
+          <section class="panel">
             <form id="addQuestionForm" class="add-question-form">
-              <h3>新增题目</h3>
+              <h3>新增自建题</h3>
               <div class="bank-filters">
                 <label>
                   <span>题型</span>
@@ -196,12 +340,11 @@
               </label>
               <button class="primary" type="submit">添加到题库</button>
             </form>
+          </section>
 
+          <section class="panel">
             <div class="bank-filters" aria-label="题库筛选">
-              <label>
-                <span>关键词</span>
-                <input id="bankSearchInput" type="search" placeholder="搜索题目、来源、标签" />
-              </label>
+              <label><span>关键词</span><input id="bankSearchInput" type="search" placeholder="搜索题目、来源、标签" /></label>
               <label>
                 <span>来源</span>
                 <select id="bankModeFilter">
@@ -212,12 +355,7 @@
                   <option value="custom">自建题</option>
                 </select>
               </label>
-              <label>
-                <span>题型</span>
-                <select id="bankCategoryFilter">
-                  <option value="all">全部题型</option>
-                </select>
-              </label>
+              <label><span>题型</span><select id="bankCategoryFilter"><option value="all">全部题型</option></select></label>
               <label>
                 <span>练习状态</span>
                 <select id="bankPracticeFilter">
@@ -240,115 +378,95 @@
             </div>
             <p id="questionBankCount" class="bank-count"></p>
             <div id="questionBankContent" class="dialog-content"></div>
-          </div>
+          </section>
         </section>
 
-        <section class="question-band">
-          <div class="question-meta">
-            <span id="questionType">综合分析</span>
-            <span id="questionDifficulty">标准</span>
-            <span id="questionSource">上海治理场景</span>
-          </div>
-          <div id="questionText"></div>
-          <div class="cue-row" id="cueRow"></div>
-          <div class="current-status-panel" aria-label="当前题目练习状态">
-            <span id="currentPracticeStatus">练习状态：未练习</span>
+        <section id="reviewPage" class="page-view review-page" hidden>
+          <header class="page-header">
             <div>
-              <button id="markCurrentDoneBtn" class="secondary" type="button">标为已练</button>
-              <button id="markCurrentTodoBtn" class="ghost" type="button">标为未练</button>
+              <p class="eyebrow">复盘中心</p>
+              <h2>把每次答题变成下一次提升</h2>
             </div>
-          </div>
+            <button id="clearHistoryBtn" class="ghost" type="button">清空记录</button>
+          </header>
+          <section class="panel">
+            <div class="bank-filters">
+              <label><span>题型</span><select id="reviewCategoryFilter"><option value="all">全部题型</option></select></label>
+              <label>
+                <span>分数</span>
+                <select id="reviewScoreFilter">
+                  <option value="all">全部分数</option>
+                  <option value="lt60">60 分以下</option>
+                  <option value="60-79">60-79 分</option>
+                  <option value="gte80">80 分以上</option>
+                </select>
+              </label>
+              <label>
+                <span>日期</span>
+                <select id="reviewDateFilter">
+                  <option value="all">全部日期</option>
+                  <option value="week">最近 7 天</option>
+                  <option value="month">最近 30 天</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="section-title">
+              <div>
+                <p class="eyebrow">训练记录</p>
+                <h3>全部复盘</h3>
+              </div>
+              <span id="reviewRecordCount">0 条</span>
+            </div>
+            <div id="reviewRecordsList" class="review-record-list"></div>
+          </section>
         </section>
 
-        <section class="training-grid">
-          <div class="coach-panel">
-            <div class="timer-card" id="timerCard">
-              <div>
-                <p id="phaseLabel">准备开始</p>
-                <strong id="timerDisplay">00:00</strong>
-              </div>
-              <div class="phase-track" aria-hidden="true">
-                <span id="phaseProgress"></span>
-              </div>
+        <section id="dataPage" class="page-view data-page" hidden>
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">数据中心</p>
+              <h2>本地备份与云端同步</h2>
             </div>
+          </header>
 
-            <div class="control-grid">
-              <button id="startBtn" class="primary" type="button">开始模拟</button>
-              <button id="answerNowBtn" class="secondary" type="button">开始答题</button>
-              <button id="finishBtn" class="danger" type="button" disabled>结束答题</button>
-              <button id="resetBtn" class="secondary" type="button">重置</button>
-            </div>
+          <section class="content-grid two-col">
+            <article class="panel cloud-panel">
+              <h3>Supabase 登录状态</h3>
+              <p id="cloudStatus" class="helper-text">未登录，当前只保存到本地。</p>
+              <div id="authForm" class="cloud-auth-form">
+                <label><span>邮箱</span><input id="authEmail" type="email" autocomplete="email" placeholder="输入邮箱" /></label>
+                <label><span>密码</span><input id="authPassword" type="password" autocomplete="current-password" placeholder="至少 6 位" /></label>
+                <div class="backup-grid">
+                  <button id="signInBtn" class="secondary" type="button">登录</button>
+                  <button id="signUpBtn" class="ghost" type="button">注册</button>
+                </div>
+              </div>
+              <button id="signOutBtn" class="ghost wide" type="button" hidden>退出登录</button>
+              <p id="lastSyncTime" class="helper-text">最后同步：暂无</p>
+            </article>
 
-            <div class="recording-box">
-              <div class="recording-state">
-                <span class="dot" id="recordDot"></span>
-                <span id="recordStatus">未录音</span>
+            <article class="panel cloud-panel">
+              <h3>同步操作</h3>
+              <div class="backup-grid">
+                <button id="migrateCloudBtn" class="secondary" type="button">迁移本地数据到云端</button>
+                <button id="syncCloudBtn" class="ghost" type="button">从云端同步数据</button>
               </div>
-              <button id="micTestBtn" class="secondary" type="button">测试麦克风权限</button>
-              <audio id="audioPlayback" controls></audio>
-            </div>
+              <button id="testCloudWriteBtn" class="secondary wide" type="button">测试云端写入</button>
+              <p id="cloudMessage" class="helper-text"></p>
+            </article>
 
-            <label class="transcript-field">
-              <span>回答文字稿</span>
-              <textarea id="transcriptInput" placeholder="可直接粘贴你的回答；如果浏览器支持语音识别，开始答题后会自动尝试转写。"></textarea>
-            </label>
-
-            <section class="attempts-panel">
-              <div class="history-head slim">
-                <h2>作答记录</h2>
-                <span id="attemptCount">暂无记录</span>
+            <article class="panel cloud-panel">
+              <h3>本地备份</h3>
+              <div class="backup-grid">
+                <button id="exportDataBtn" class="secondary" type="button">导出数据</button>
+                <button id="importDataBtn" class="ghost" type="button">导入数据</button>
               </div>
-              <div id="attemptList" class="attempt-list"></div>
-            </section>
-
-          </div>
-
-          <div class="feedback-panel">
-            <div class="feedback-header">
-              <div>
-                <p class="eyebrow">AI 教练复盘</p>
-                <h2 id="scoreTitle">完成一次答题后生成点评</h2>
-              </div>
-              <div class="top-actions">
-                <button id="chatgptPromptBtn" class="secondary" type="button">复制给 ChatGPT</button>
-                <button id="reviewBtn" class="secondary" type="button">立即点评</button>
-              </div>
-            </div>
-
-            <div class="score-strip">
-              <div>
-                <span>结构</span>
-                <strong id="structureScore">--</strong>
-              </div>
-              <div>
-                <span>内容</span>
-                <strong id="contentScore">--</strong>
-              </div>
-              <div>
-                <span>表达</span>
-                <strong id="expressionScore">--</strong>
-              </div>
-              <div>
-                <span>时间</span>
-                <strong id="timeScore">--</strong>
-              </div>
-            </div>
-
-            <div id="feedbackContent" class="feedback-content">
-              <p>建议先点击“朗读题目”，按正式流程思考和答题。复盘会指出审题、框架、内容、表达和时间控制问题，并给你下一轮训练任务。</p>
-            </div>
-
-            <section class="review-notes-panel">
-              <div class="history-head slim">
-                <h2>复盘板块</h2>
-                <button id="saveReviewNotesBtn" class="ghost" type="button">自动保存</button>
-              </div>
-              <label class="transcript-field">
-                <span>我的复盘</span>
-                <textarea id="noteReview" placeholder="把点评后的思路、框架、开头、主体和结尾整理到这里。"></textarea>
-              </label>
-            </section>
-          </div>
+              <input id="importDataInput" type="file" accept="application/json,.json" hidden />
+              <p class="helper-text">导出文件包含训练记录、文字稿、题目状态和复盘。录音仍按本地逻辑保留。</p>
+            </article>
+          </section>
         </section>
       </section>
     </main>
@@ -367,6 +485,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./word-questions.js"></script>
     <script src="./professional-questions.js"></script>
-    <script src="./app.js?v=960c56b2"></script>
+    <script src="./app.js?v=product-refactor-2"></script>
   </body>
 </html>
