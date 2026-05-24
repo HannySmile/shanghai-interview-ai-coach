@@ -2652,9 +2652,28 @@ async function writeSyncLog(action, status, message, counts = {}) {
 async function testCloudWrite() {
   const user = await getCurrentCloudUser();
   if (!user) return;
-  setCloudMessage("正在测试写入 sync_logs...");
+  setCloudMessage("正在测试写入 practice_records...");
   const message = `测试云端写入 ${new Date().toLocaleString("zh-CN")}`;
-  const row = {
+  const practiceResult = await insertPracticeRecord({
+    user_id: user.id,
+    question_id: `test-${Date.now()}`,
+    question_title: "云端写入测试题",
+    question_source: "测试云端写入",
+    question_type: "测试",
+    answer_text: "这是一条测试记录，用于确认当前登录用户可以写入 practice_records。",
+    transcript: "这是一条测试记录，用于确认当前登录用户可以写入 practice_records。",
+    score: 0,
+    status: "test",
+    review_note: "测试记录，可在 Supabase 中手动删除。",
+    practiced_at: new Date().toISOString()
+  });
+  if (practiceResult.error) {
+    setCloudMessage(`云端同步失败：practice_records 写入失败：${practiceResult.error.message}`, "error");
+    return;
+  }
+
+  setCloudMessage("practice_records 已写入，正在测试 sync_logs...");
+  const logRow = {
     user_id: user.id,
     action: "test_write",
     status: "success",
@@ -2663,13 +2682,13 @@ async function testCloudWrite() {
     payload: { email: user.email || "", origin: location.origin, pathname: location.pathname },
     created_at: new Date().toISOString()
   };
-  const result = await insertSyncLogRow(row);
+  const result = await insertSyncLogRow(logRow);
   if (result.error) {
-    setCloudMessage(`云端同步失败：${result.error.message}`, "error");
+    setCloudMessage(`practice_records 云端已同步；sync_logs 写入失败：${result.error.message}。请在 Supabase 给 sync_logs 增加 INSERT RLS 策略。`, "error");
     return;
   }
   const fieldText = result.fields?.join("、") || "默认字段";
-  setCloudMessage(`云端已同步：sync_logs 写入成功（字段：${fieldText}）`, "success");
+  setCloudMessage(`云端已同步：practice_records 和 sync_logs 都写入成功（sync_logs 字段：${fieldText}）`, "success");
 }
 
 async function migrateLocalDataToCloud() {

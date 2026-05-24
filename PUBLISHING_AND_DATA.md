@@ -93,6 +93,46 @@ python3 -m http.server 4199 --bind 127.0.0.1
 
 前端只使用 Supabase Publishable key。不要把 `sb_secret_` 开头的 Secret key 写入前端代码。
 
+### Supabase RLS 策略示例
+
+如果页面提示 `permission denied for table ...`，说明 RLS 或表权限还没有给当前登录用户放开。可以在 Supabase SQL Editor 执行下面策略，允许用户只读写自己的数据：
+
+```sql
+alter table practice_records enable row level security;
+alter table custom_questions enable row level security;
+alter table sync_logs enable row level security;
+
+create policy "practice_records_select_own"
+on practice_records for select
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "practice_records_insert_own"
+on practice_records for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+create policy "custom_questions_select_own"
+on custom_questions for select
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "custom_questions_insert_own"
+on custom_questions for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+create policy "sync_logs_select_own"
+on sync_logs for select
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "sync_logs_insert_own"
+on sync_logs for insert
+to authenticated
+with check (auth.uid() = user_id);
+```
+
 ## 其他后端选择
 
 如果要做到“换设备也自动看到所有记录”，需要接后端数据库，例如：
