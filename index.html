@@ -67,7 +67,7 @@
           <section class="dashboard-grid">
             <article class="hero-card">
               <p class="eyebrow">今日推荐训练</p>
-              <h3 id="todayRecommendationTitle">正式模拟 · 三题套卷</h3>
+              <h3 id="todayRecommendationTitle">正式模拟 · 四题套卷</h3>
               <p id="todayRecommendationText">按 12 分钟流程完成一套题，结束后整理复盘。</p>
               <div class="quick-actions">
                 <button class="primary" data-dashboard-start type="button">进入练习</button>
@@ -187,12 +187,12 @@
 
               <div class="time-grid">
                 <label class="field">
-                  <span>思考</span>
-                  <input id="thinkInput" type="number" min="10" max="180" step="5" value="60" />
+                  <span>思考（分钟）</span>
+                  <input id="thinkInput" type="number" min="0.5" max="3" step="0.5" value="1" />
                 </label>
                 <label class="field">
-                  <span>答题</span>
-                  <input id="answerInput" type="number" min="30" max="420" step="15" value="180" />
+                  <span>答题（分钟）</span>
+                  <input id="answerInput" type="number" min="1" max="12" step="0.5" value="3" />
                 </label>
               </div>
 
@@ -492,6 +492,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./word-questions.js"></script>
     <script src="./professional-questions.js"></script>
-    <script src="./app.js?v=mock-read-flow-1"></script>
+    <script src="./app.js?v=mock-four-questions-minutes-1"></script>
   </body>
 </html>

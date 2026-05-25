@@ -505,7 +505,7 @@ const state = {
   mockThinkId: null,
   mockRevealed: false,
   mockStartedAt: null,
-  mockTranscriptParts: ["", "", ""],
+  mockTranscriptParts: ["", "", "", ""],
   reviewedTranscript: "",
   reviewedQuestionText: "",
   lastSavedRecordId: "",
@@ -839,12 +839,14 @@ function isQuestionDeleted(text) {
 
 function prepareMockQuestions() {
   const pool = trueQuestions.concat(standardQuestions).map(normalizeQuestion).filter((q) => !isQuestionDeleted(q.text));
+  const professionalPool = professionalQuestions.map(normalizeQuestion).filter((q) => !isQuestionDeleted(q.text));
   const pickFromCategory = (category) => pickPreferUnpracticed(pool.filter((q) => q.category === category));
   const thirdCategory = pickRandom(["组织管理", "应急应变", "人际沟通"]);
   state.mockQuestions = [
     pickFromCategory("综合分析"),
     pickFromCategory("岗位匹配"),
-    pickFromCategory(thirdCategory)
+    pickFromCategory(thirdCategory),
+    pickPreferUnpracticed(professionalPool)
   ].filter(Boolean);
 }
 
@@ -860,11 +862,12 @@ function pickPreferUnpracticed(items) {
 
 function renderQuestion() {
   const q = state.current;
-  els.sessionTitle.textContent = state.mode === "mock" ? `正式模拟 · 第 ${state.mockIndex + 1}/3 题` : `${modeName(state.mode)} · ${q.category}`;
-  if (els.dockModeLabel) els.dockModeLabel.textContent = state.mode === "mock" ? `正式模拟 · 第 ${state.mockIndex + 1}/3 题` : `${modeName(state.mode)} · ${q.category}`;
+  const mockTotal = state.mockQuestions.length || 4;
+  els.sessionTitle.textContent = state.mode === "mock" ? `正式模拟 · 第 ${state.mockIndex + 1}/${mockTotal} 题` : `${modeName(state.mode)} · ${q.category}`;
+  if (els.dockModeLabel) els.dockModeLabel.textContent = state.mode === "mock" ? `正式模拟 · 第 ${state.mockIndex + 1}/${mockTotal} 题` : `${modeName(state.mode)} · ${q.category}`;
   els.questionType.textContent = state.mode === "mock" ? "正式模拟" : q.category;
-  els.questionDifficulty.textContent = state.mode === "mock" ? "三题套卷" : q.difficulty;
-  els.questionSource.textContent = state.mode === "mock" ? `${state.mockViewMode === "read" ? "看题模式" : "听题模式"}｜12分钟3题` : q.source;
+  els.questionDifficulty.textContent = state.mode === "mock" ? "四题套卷" : q.difficulty;
+  els.questionSource.textContent = state.mode === "mock" ? `${state.mockViewMode === "read" ? "看题模式" : "听题模式"}｜12分钟4题` : q.source;
   renderMockProgress();
   els.questionText.innerHTML = formatQuestionText(q);
   els.questionText.hidden = false;
@@ -872,8 +875,8 @@ function renderQuestion() {
   renderCurrentPracticeStatus();
   renderAttempts();
   if (state.mode === "mock" && state.mockViewMode === "listen" && !state.mockRevealed) {
-    els.questionText.textContent = `正式模拟听题中：答题结束前不显示题面。当前第 ${state.mockIndex + 1}/3 题，请点击“朗读题目”或“开始模拟”听题作答。`;
-    els.cueRow.innerHTML = `<span>三题套题</span><span>总限时12分钟</span><span>题面结束后显示</span>`;
+    els.questionText.textContent = `正式模拟听题中：答题结束前不显示题面。当前第 ${state.mockIndex + 1}/${mockTotal} 题，请点击“朗读题目”或“开始模拟”听题作答。`;
+    els.cueRow.innerHTML = `<span>四题套题</span><span>总限时12分钟</span><span>含1道专业题</span><span>题面结束后显示</span>`;
     return;
   }
   const guide = state.mode === "professional" ? ["专业原则", "岗位落地"] : [];
@@ -1015,8 +1018,8 @@ function setMode(mode) {
   els.mockViewField.hidden = mode !== "mock";
   els.categoryField.hidden = mode === "mock" || isBank;
   els.focusField.hidden = true;
-  els.think.value = 60;
-  els.answer.value = mode === "mock" ? 720 : 180;
+  els.think.value = 1;
+  els.answer.value = mode === "mock" ? 12 : 3;
   if (mode === "professional") els.category.value = "专业题";
   else if (mode === "practice" && els.category.value === "专业题") els.category.value = "all";
   els.category.disabled = mode === "mock" || mode === "professional";
@@ -1079,6 +1082,11 @@ function formatTime(seconds) {
   return `${mins}:${secs}`;
 }
 
+function durationInputSeconds(input) {
+  const value = Number(input?.value || input || 0);
+  return value > 20 ? value : Math.round(value * 60);
+}
+
 function startTimer(phase, seconds) {
   clearInterval(state.timerId);
   state.phase = phase;
@@ -1097,7 +1105,8 @@ function startTimer(phase, seconds) {
 }
 
 function updateTimer() {
-  const labels = { idle: "准备开始", think: "思考时间", answer: "答题时间", done: "本题完成", "mock-ready": `第 ${state.mockIndex + 1}/3 题准备`, "mock-think": `第 ${state.mockIndex + 1}/3 题思考`, "mock-answer": `第 ${state.mockIndex + 1}/3 题答题`, "mock-read": `第 ${state.mockIndex + 1}/3 题读题` };
+  const mockTotal = state.mockQuestions.length || 4;
+  const labels = { idle: "准备开始", think: "思考时间", answer: "答题时间", done: "本题完成", "mock-ready": `第 ${state.mockIndex + 1}/${mockTotal} 题准备`, "mock-think": `第 ${state.mockIndex + 1}/${mockTotal} 题思考`, "mock-answer": `第 ${state.mockIndex + 1}/${mockTotal} 题答题`, "mock-read": `第 ${state.mockIndex + 1}/${mockTotal} 题读题` };
   els.phaseLabel.textContent = labels[state.phase];
   els.timerDisplay.textContent = formatTime(state.remaining);
   const used = state.total ? ((state.total - state.remaining) / state.total) * 100 : 0;
@@ -1134,7 +1143,7 @@ async function startSession() {
   }
   resetSession(false);
   speakQuestion();
-  startTimer("think", Number(els.think.value));
+  startTimer("think", durationInputSeconds(els.think));
   els.pauseBtn.disabled = true;
   els.finishBtn.disabled = true;
   els.recordStatus.textContent = "等待答题开始";
@@ -1154,7 +1163,7 @@ async function beginAnswer() {
   els.recordDot.classList.add("live");
   await startRecording();
   startRecognition();
-  startTimer("answer", Number(els.answer.value));
+  startTimer("answer", durationInputSeconds(els.answer));
 }
 
 async function startMockSession() {
@@ -1163,13 +1172,13 @@ async function startMockSession() {
   state.mockIndex = 0;
   state.current = state.mockQuestions[0];
   state.mockRevealed = state.mockViewMode === "read";
-  state.mockTranscriptParts = ["", "", ""];
+  state.mockTranscriptParts = state.mockQuestions.map(() => "");
   state.phase = state.mockViewMode === "read" ? "mock-ready" : "mock-read";
-  state.remaining = 720;
-  state.total = 720;
+  state.remaining = durationInputSeconds(els.answer);
+  state.total = durationInputSeconds(els.answer);
   state.mockStartedAt = null;
   state.answerStartedAt = null;
-  els.recordStatus.textContent = state.mockViewMode === "read" ? "第 1/3 题准备中，点击“开始答题”后开始计时和录音" : "正式模拟开始，听题后进入思考";
+  els.recordStatus.textContent = state.mockViewMode === "read" ? `第 1/${state.mockQuestions.length || 4} 题准备中，点击“开始答题”后开始计时和录音` : "正式模拟开始，听题后进入思考";
   renderQuestion();
   loadReviewDraftForCurrent();
   renderMockTranscript();
@@ -1208,10 +1217,10 @@ async function beginMockAnswer() {
   state.answerStartedAt = Date.now();
   state.mockStartedAt = state.mockStartedAt || Date.now();
   els.recordDot.classList.add("live");
-  els.recordStatus.textContent = `第 ${state.mockIndex + 1}/3 题答题中`;
+  els.recordStatus.textContent = `第 ${state.mockIndex + 1}/${state.mockQuestions.length || 4} 题答题中`;
   renderMockTranscript();
   const answerIndex = state.mockIndex;
-  const answerLabel = ["第一题", "第二题", "第三题"][answerIndex];
+  const answerLabel = questionLabel(answerIndex);
   await startRecording({
     questionText: state.current.text,
     transcriptGetter: () => paragraphizeTranscript(`${answerLabel}：${state.mockTranscriptParts[answerIndex] || ""}`)
@@ -1244,8 +1253,8 @@ function finishMockQuestion() {
     state.answerStartedAt = null;
     state.phase = state.mockViewMode === "read" ? "mock-ready" : "mock-read";
     els.recordStatus.textContent = state.mockViewMode === "read"
-      ? `第 ${state.mockIndex + 1}/3 题准备中，点击“开始答题”后继续`
-      : `第 ${state.mockIndex + 1}/3 题读题中`;
+      ? `第 ${state.mockIndex + 1}/${state.mockQuestions.length || 4} 题准备中，点击“开始答题”后继续`
+      : `第 ${state.mockIndex + 1}/${state.mockQuestions.length || 4} 题读题中`;
     renderQuestion();
     renderMockTranscript();
     if (state.mockViewMode === "read") {
@@ -1266,7 +1275,7 @@ function finishMockSession() {
   clearInterval(state.timerId);
   clearTimeout(state.mockThinkId);
   state.phase = "done";
-  state.answerSeconds = state.mockStartedAt ? Math.round((Date.now() - state.mockStartedAt) / 1000) : 720 - state.remaining;
+  state.answerSeconds = state.mockStartedAt ? Math.round((Date.now() - state.mockStartedAt) / 1000) : state.total - state.remaining;
   state.remaining = 0;
   state.mockRevealed = true;
   els.finishBtn.disabled = true;
@@ -1293,12 +1302,17 @@ function finishMockSession() {
 
 function renderMockTranscript(interim = "", interimIndex = state.mockIndex) {
   if (state.mode !== "mock") return;
-  const labels = ["第一题", "第二题", "第三题"];
-  els.transcript.value = labels.map((label, index) => {
+  const total = state.mockQuestions.length || state.mockTranscriptParts.length || 4;
+  els.transcript.value = Array.from({ length: total }, (_, index) => {
+    const label = questionLabel(index);
     const currentInterim = index === interimIndex && interim ? `\n${interim}` : "";
     const text = `${state.mockTranscriptParts[index] || ""}${currentInterim}`.trim();
     return `${label}：${text}`;
   }).join("\n\n");
+}
+
+function questionLabel(index) {
+  return ["第一题", "第二题", "第三题", "第四题", "第五题"][index] || `第${index + 1}题`;
 }
 
 async function startRecording(options = {}) {
@@ -1531,7 +1545,7 @@ function resetSession(clearTranscript = true) {
   state.lastAudioDataUrl = "";
   state.mockThinkId = null;
   state.mockRevealed = state.mode !== "mock";
-  state.mockTranscriptParts = ["", "", ""];
+  state.mockTranscriptParts = ["", "", "", ""];
   els.finishBtn.disabled = true;
   els.finishBtn.textContent = "结束本题";
   els.pauseBtn.disabled = true;
@@ -1560,7 +1574,7 @@ function reviewAnswer() {
 }
 
 function reviewMockAnswer() {
-  const text = paragraphizeTranscript(els.transcript.value.trim() || ["第一题", "第二题", "第三题"].map((label, index) => `${label}：${state.mockTranscriptParts[index] || ""}`).join("\n\n"));
+  const text = paragraphizeTranscript(els.transcript.value.trim() || Array.from({ length: state.mockQuestions.length || state.mockTranscriptParts.length || 4 }, (_, index) => `${questionLabel(index)}：${state.mockTranscriptParts[index] || ""}`).join("\n\n"));
   els.transcript.value = text;
   state.current = buildMockSummaryQuestion();
   const previousFocus = els.focus.value;
@@ -1569,11 +1583,11 @@ function reviewMockAnswer() {
   state.reviewedTranscript = text;
   state.reviewedQuestionText = state.current.text;
   analysis.rubric = {
-    name: "正式模拟三题套卷：听题理解、结构表达、内容质量、时间控制",
+    name: "正式模拟四题套卷：听题理解、结构表达、内容质量、时间控制",
     scoreLabels: ["审题", "结构", "内容", "表达"],
-    task: "按上海事业单位正式模拟口径，综合看三道题是否覆盖题型要求、是否能在12分钟内稳定表达。"
+    task: "按上海事业单位正式模拟口径，综合看四道题是否覆盖题型要求、是否能在12分钟内稳定表达。"
   };
-  analysis.nextTask = "下一轮正式模拟：仍按三题套卷练，重点把每题开头压到15秒内，先亮明作答方向再展开。";
+  analysis.nextTask = "下一轮正式模拟：仍按四题套卷练，重点把每题开头压到15秒内，先亮明作答方向再展开。";
   renderFeedback(analysis);
   saveHistory(analysis);
   renderSkills();
@@ -1584,17 +1598,17 @@ function buildMockSummaryQuestion() {
   const list = state.mockQuestions.length ? state.mockQuestions : [state.current].filter(Boolean);
   return {
     category: "正式模拟",
-    difficulty: "三题套卷",
+    difficulty: "四题套卷",
     source: `${state.mockViewMode === "read" ? "看题模式" : "听题模式"}｜总限时12分钟`,
     text: list.map((q, index) => `第${index + 1}题：${q.text}`).join("\n"),
-    cues: ["综合分析", "岗位认知", "组织/应急/人际"],
+    cues: ["综合分析", "岗位认知", "组织/应急/人际", "专业题"],
     points: list.flatMap((q) => q.points || []).slice(0, 8)
   };
 }
 
 function analyze(text, q) {
   const length = text.replace(/\s/g, "").length;
-  const targetSeconds = Number(els.answer.value);
+  const targetSeconds = durationInputSeconds(els.answer);
   const actualSeconds = state.answerSeconds || Math.max(45, Math.round(length / 3.2));
   const timeRatio = actualSeconds / targetSeconds;
   const focus = els.focus.value;
