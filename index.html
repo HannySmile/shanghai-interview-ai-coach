@@ -53,79 +53,57 @@
         </div>
 
         <section id="dashboardPage" class="page-view dashboard-page">
-          <header class="page-header">
+          <header class="page-header compact-header">
             <div>
-              <p class="eyebrow">训练仪表盘</p>
-              <h2>今天从一轮可复盘的练习开始</h2>
+              <p class="eyebrow">复盘看板</p>
+              <h2>今天练了什么，哪里还要补</h2>
             </div>
             <div class="top-actions">
-              <button class="primary" data-dashboard-start type="button">开始推荐训练</button>
-                <button id="questionBankBtn" class="secondary" data-page-link="bank" type="button">查看题库</button>
+              <button class="primary" data-page-link="practice" type="button">开始练习</button>
+              <button id="questionBankBtn" class="secondary" data-page-link="bank" type="button">查看题库</button>
             </div>
           </header>
 
-          <section class="dashboard-grid">
-            <article class="hero-card">
-              <p class="eyebrow">今日推荐训练</p>
-              <h3 id="todayRecommendationTitle">正式模拟 · 四题套卷</h3>
-              <p id="todayRecommendationText">按 12 分钟流程完成一套题，结束后整理复盘。</p>
-              <div class="quick-actions">
-                <button class="primary" data-dashboard-start type="button">进入练习</button>
-                <button class="ghost" id="continuePracticeBtn" type="button">继续上次练习</button>
-              </div>
-            </article>
-
-            <article class="metric-card">
-              <p>本周训练进度</p>
-              <strong id="weeklyPracticeCount">0 次</strong>
-              <span id="weeklyPracticeHint">完成一次答题后自动更新</span>
-            </article>
-
-            <article class="metric-card">
-              <p>最近分数</p>
-              <strong id="latestScore">--</strong>
-              <span id="latestScoreHint">暂无练习记录</span>
-            </article>
-
-            <article class="metric-card">
-              <p>数据同步状态</p>
-              <strong id="dashboardSyncStatus">本地保存</strong>
-              <span id="dashboardSyncHint">登录后可同步到云端</span>
-            </article>
-          </section>
-
-          <section class="content-grid two-col">
-            <article class="panel">
-              <div class="section-title">
+          <section class="review-board-grid">
+            <article class="panel today-practice-panel">
+              <div class="section-title slim-title">
                 <div>
-                  <p class="eyebrow">能力画像</p>
-                  <h3>五项能力趋势</h3>
+                  <p class="eyebrow">今日已练题目</p>
+                  <h3>今天完成的答题</h3>
                 </div>
               </div>
-              <div class="skill-list" id="skillList"></div>
+              <div id="todayPracticeList" class="today-practice-list"></div>
             </article>
 
-            <article class="panel">
-              <div class="section-title">
+            <article class="panel weekly-heat-panel">
+              <div class="section-title slim-title">
                 <div>
-                  <p class="eyebrow">最近训练记录</p>
-                  <h3>继续复盘</h3>
+                  <p class="eyebrow">本周练习热力图</p>
+                  <h3>周一到周日</h3>
                 </div>
-                <button class="ghost" data-page-link="review" type="button">全部记录</button>
               </div>
-              <div id="historyList" class="record-list compact-list"></div>
+              <div id="weeklyHeatmap" class="weekly-heatmap"></div>
             </article>
-          </section>
 
-          <section class="panel">
-            <div class="section-title">
-              <div>
-                <p class="eyebrow">正式模拟记录</p>
-                <h3>模拟练习</h3>
+            <article class="panel monthly-heat-panel">
+              <div class="section-title slim-title">
+                <div>
+                  <p class="eyebrow">本月练习热力图</p>
+                  <h3>每日完成题数</h3>
+                </div>
               </div>
-              <span id="mockHistoryCount">暂无</span>
-            </div>
-            <div id="mockHistoryList" class="record-list compact-list"></div>
+              <div id="monthlyHeatmap" class="monthly-heatmap"></div>
+            </article>
+
+            <article class="panel type-distribution-panel">
+              <div class="section-title slim-title">
+                <div>
+                  <p class="eyebrow">题型分布</p>
+                  <h3>本月答题类型</h3>
+                </div>
+              </div>
+              <div id="typeDistribution" class="type-distribution"></div>
+            </article>
           </section>
         </section>
 
@@ -270,27 +248,22 @@
                 </div>
 
                 <div class="feedback-panel">
-                  <div class="feedback-header">
-                    <div>
-                      <p class="eyebrow">答题框架提示</p>
-                      <h2 id="scoreTitle">完成一次答题后生成点评</h2>
+                  <section class="chatgpt-import-panel">
+                    <div class="feedback-header">
+                      <div>
+                        <p class="eyebrow">外部点评</p>
+                        <h2>ChatGPT 点评导入</h2>
+                      </div>
                     </div>
-                    <div class="top-actions">
-                      <button id="chatgptPromptBtn" class="secondary" type="button">复制给 ChatGPT</button>
-                      <button id="reviewBtn" class="secondary" type="button">立即点评</button>
+                    <label class="transcript-field">
+                      <span>粘贴 ChatGPT 给你的点评</span>
+                      <textarea id="chatgptFeedbackInput" placeholder="把题目、你的文字稿发给 ChatGPT 后，将它返回的打分、优点、问题和优化稿粘贴到这里。"></textarea>
+                    </label>
+                    <div class="import-feedback-actions">
+                      <button id="importFeedbackBtn" class="primary" type="button">导入点评</button>
+                      <span id="importFeedbackStatus" class="save-hint"></span>
                     </div>
-                  </div>
-
-                  <div class="score-strip">
-                    <div><span>结构</span><strong id="structureScore">--</strong></div>
-                    <div><span>内容</span><strong id="contentScore">--</strong></div>
-                    <div><span>表达</span><strong id="expressionScore">--</strong></div>
-                    <div><span>时间</span><strong id="timeScore">--</strong></div>
-                  </div>
-
-                  <div id="feedbackContent" class="feedback-content">
-                    <p>先完成一次作答。系统会保存记录、更新题库状态，并进入复盘区。</p>
-                  </div>
+                  </section>
 
                   <section class="review-notes-panel">
                     <div class="history-head slim">
@@ -314,10 +287,13 @@
               <p class="eyebrow">题库管理</p>
               <h2>全部训练题目</h2>
             </div>
-            <button class="primary" data-page-link="practice" type="button">去练习</button>
+            <div class="top-actions">
+              <button id="toggleAddQuestionBtn" class="secondary" type="button">新增题目</button>
+              <button class="primary" data-page-link="practice" type="button">去练习</button>
+            </div>
           </header>
 
-          <section class="panel">
+          <section id="addQuestionPanel" class="panel add-question-panel" hidden>
             <form id="addQuestionForm" class="add-question-form">
               <h3>新增自建题</h3>
               <div class="bank-filters">
@@ -492,6 +468,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./word-questions.js"></script>
     <script src="./professional-questions.js"></script>
-    <script src="./app.js?v=mock-four-questions-minutes-1"></script>
+    <script src="./app.js?v=review-board-import-1"></script>
   </body>
 </html>

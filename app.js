@@ -500,6 +500,7 @@ const state = {
   recognition: null,
   transcriptBuffer: "",
   finalTranscriptParts: [],
+  bankSaveTimers: {},
   mockQuestions: [],
   mockIndex: 0,
   mockThinkId: null,
@@ -534,13 +535,10 @@ const els = {
   sidebarSyncDetail: document.querySelector("#sidebarSyncDetail"),
   dashboardSyncStatus: document.querySelector("#dashboardSyncStatus"),
   dashboardSyncHint: document.querySelector("#dashboardSyncHint"),
-  todayRecommendationTitle: document.querySelector("#todayRecommendationTitle"),
-  todayRecommendationText: document.querySelector("#todayRecommendationText"),
-  weeklyPracticeCount: document.querySelector("#weeklyPracticeCount"),
-  weeklyPracticeHint: document.querySelector("#weeklyPracticeHint"),
-  latestScore: document.querySelector("#latestScore"),
-  latestScoreHint: document.querySelector("#latestScoreHint"),
-  continuePracticeBtn: document.querySelector("#continuePracticeBtn"),
+  todayPracticeList: document.querySelector("#todayPracticeList"),
+  weeklyHeatmap: document.querySelector("#weeklyHeatmap"),
+  monthlyHeatmap: document.querySelector("#monthlyHeatmap"),
+  typeDistribution: document.querySelector("#typeDistribution"),
   lastSyncTime: document.querySelector("#lastSyncTime"),
   reviewCategoryFilter: document.querySelector("#reviewCategoryFilter"),
   reviewScoreFilter: document.querySelector("#reviewScoreFilter"),
@@ -605,6 +603,9 @@ const els = {
   },
   scoreLabels: document.querySelectorAll(".score-strip span"),
   feedback: document.querySelector("#feedbackContent"),
+  chatgptFeedbackInput: document.querySelector("#chatgptFeedbackInput"),
+  importFeedbackBtn: document.querySelector("#importFeedbackBtn"),
+  importFeedbackStatus: document.querySelector("#importFeedbackStatus"),
   history: document.querySelector("#historyList"),
   mockHistory: document.querySelector("#mockHistoryList"),
   mockHistoryCount: document.querySelector("#mockHistoryCount"),
@@ -638,6 +639,8 @@ const els = {
   bankPractice: document.querySelector("#bankPracticeFilter"),
   bankScore: document.querySelector("#bankScoreFilter"),
   bankReset: document.querySelector("#bankResetBtn"),
+  toggleAddQuestionBtn: document.querySelector("#toggleAddQuestionBtn"),
+  addQuestionPanel: document.querySelector("#addQuestionPanel"),
   addQuestionForm: document.querySelector("#addQuestionForm"),
   newQuestionCategory: document.querySelector("#newQuestionCategory"),
   newQuestionSource: document.querySelector("#newQuestionSource"),
@@ -688,27 +691,179 @@ function setPage(page) {
 }
 
 function renderDashboard() {
-  const latest = state.history[0];
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weekly = state.history.filter((item) => timestampFromRecord(item) >= weekAgo).length;
-  els.weeklyPracticeCount.textContent = `${weekly} 次`;
-  els.weeklyPracticeHint.textContent = weekly ? "最近 7 天完成的有效答题记录" : "完成一次答题后自动更新";
-  els.latestScore.textContent = latest ? `${latest.score}` : "--";
-  els.latestScoreHint.textContent = latest ? `${latest.time} · ${latest.category}` : "暂无练习记录";
-  const next = getRecommendedQuestion();
-  if (next) {
-    els.todayRecommendationTitle.textContent = `${next.category} · ${next.difficulty || "训练"}`;
-    els.todayRecommendationText.textContent = next.text;
-  }
+  const rows = flattenPracticeRows();
+  renderTodayPractice(rows);
+  renderWeeklyHeatmap(rows);
+  renderMonthlyHeatmap(rows);
+  renderTypeDistribution(rows);
   renderSyncSummary();
-  renderHistory();
-  renderMockHistory();
-  renderSkills();
 }
 
 function timestampFromRecord(item) {
   const idTime = String(item.id || "").match(/record-(\d+)/)?.[1];
   return idTime ? Number(idTime) : 0;
+}
+
+function flattenPracticeRows() {
+  const historyRows = state.history.flatMap((item) => {
+    const timestamp = timestampFromRecord(item);
+    const base = {
+      id: item.id,
+      timestamp,
+      time: item.time || formatDateTime(timestamp),
+      mode: modeName(item.mode),
+      score: item.score ?? ""
+    };
+    if (Array.isArray(item.childQuestions) && item.childQuestions.length) {
+      return item.childQuestions.map((child, index) => ({
+        ...base,
+        id: `${item.id}-${index}`,
+        question: child.question || item.question,
+        category: child.category || item.category,
+        score: child.score ?? item.score ?? ""
+      }));
+    }
+    return [{
+      ...base,
+      question: item.question,
+      category: item.category || "未分类"
+    }];
+  }).filter((item) => item.timestamp);
+  const questionByKey = new Map(getAllQuestions().map((q) => [attemptKey(q.text), q]));
+  const attemptRows = Object.entries(state.questionAttempts).flatMap(([key, attempts]) => {
+    const question = questionByKey.get(key);
+    if (!question) return [];
+    return (attempts || []).map((attempt) => {
+      const idTime = String(attempt.id || "").match(/attempt-(\d+)/)?.[1];
+      const timestamp = idTime ? Number(idTime) : 0;
+      const hasHistory = historyRows.some((row) => row.question === question.text && Math.abs(row.timestamp - timestamp) < 5000);
+      if (!timestamp || hasHistory) return null;
+      const manual = getManualQuestionStatus(question.text) || {};
+      return {
+        id: attempt.id,
+        timestamp,
+        time: attempt.time || formatDateTime(timestamp),
+        mode: modeName(state.mode),
+        question: question.text,
+        category: question.category || "未分类",
+        score: manual.last_score ?? manual.score ?? ""
+      };
+    }).filter(Boolean);
+  });
+  return [...historyRows, ...attemptRows].sort((a, b) => b.timestamp - a.timestamp);
+}
+
+function formatDateKey(timestamp) {
+  const date = new Date(timestamp);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateTime(timestamp) {
+  if (!timestamp) return "";
+  return new Date(timestamp).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function sameDay(timestamp, date = new Date()) {
+  return formatDateKey(timestamp) === formatDateKey(date.getTime());
+}
+
+function countRowsByDate(rows) {
+  return rows.reduce((acc, item) => {
+    const key = formatDateKey(item.timestamp);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function heatLevel(count, max) {
+  if (!count) return 0;
+  if (max <= 1) return 1;
+  return Math.min(4, Math.max(1, Math.ceil((count / max) * 4)));
+}
+
+function renderTodayPractice(rows) {
+  if (!els.todayPracticeList) return;
+  const todayRows = rows.filter((item) => sameDay(item.timestamp)).sort((a, b) => b.timestamp - a.timestamp);
+  if (!todayRows.length) {
+    els.todayPracticeList.innerHTML = `<div class="empty-state compact-empty">今天还没有完成练习</div>`;
+    return;
+  }
+  els.todayPracticeList.innerHTML = todayRows.map((item) => `
+    <article class="today-practice-item">
+      <strong>${escapeHtml(truncateText(item.question, 58))}</strong>
+      <span>${escapeHtml(item.category)} · ${escapeHtml(item.mode)} · ${escapeHtml(item.time)} · ${item.score === "" ? "暂无分" : `${item.score} 分`}</span>
+    </article>
+  `).join("");
+}
+
+function renderWeeklyHeatmap(rows) {
+  if (!els.weeklyHeatmap) return;
+  const now = new Date();
+  const monday = new Date(now);
+  const day = (now.getDay() + 6) % 7;
+  monday.setDate(now.getDate() - day);
+  monday.setHours(0, 0, 0, 0);
+  const counts = countRowsByDate(rows);
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    const key = formatDateKey(date.getTime());
+    return { key, date, count: counts[key] || 0 };
+  });
+  const max = Math.max(1, ...days.map((item) => item.count));
+  const labels = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  els.weeklyHeatmap.innerHTML = days.map((item, index) => `
+    <div class="week-cell" title="${item.key} · 完成 ${item.count} 题">
+      <span>${labels[index]}</span>
+      <b class="heat-cell level-${heatLevel(item.count, max)}">${item.count}</b>
+      <small>${String(item.date.getMonth() + 1).padStart(2, "0")}/${String(item.date.getDate()).padStart(2, "0")}</small>
+    </div>
+  `).join("");
+}
+
+function renderMonthlyHeatmap(rows) {
+  if (!els.monthlyHeatmap) return;
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const counts = countRowsByDate(rows);
+  const cells = Array.from({ length: daysInMonth }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth(), index + 1);
+    const key = formatDateKey(date.getTime());
+    return { key, day: index + 1, count: counts[key] || 0 };
+  });
+  const max = Math.max(1, ...cells.map((item) => item.count));
+  els.monthlyHeatmap.innerHTML = cells.map((item) => `
+    <span class="month-cell heat-cell level-${heatLevel(item.count, max)}" title="${item.key} · 完成 ${item.count} 题">${item.day}</span>
+  `).join("");
+}
+
+function renderTypeDistribution(rows) {
+  if (!els.typeDistribution) return;
+  const now = new Date();
+  const monthRows = rows.filter((item) => {
+    const date = new Date(item.timestamp);
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  });
+  const counts = monthRows.reduce((acc, item) => {
+    acc[item.category] = (acc[item.category] || 0) + 1;
+    return acc;
+  }, {});
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    els.typeDistribution.innerHTML = `<div class="empty-state compact-empty">本月还没有题型分布</div>`;
+    return;
+  }
+  const max = Math.max(...entries.map(([, count]) => count));
+  els.typeDistribution.innerHTML = entries.map(([category, count]) => `
+    <div class="type-row">
+      <span>${escapeHtml(category)}</span>
+      <div><b style="width:${Math.max(8, (count / max) * 100)}%"></b></div>
+      <strong>${count}</strong>
+    </div>
+  `).join("");
 }
 
 function getRecommendedQuestion() {
@@ -1236,6 +1391,7 @@ function finishMockQuestion() {
   clearTimeout(state.mockThinkId);
   state.answerSeconds = state.answerStartedAt ? Math.round((Date.now() - state.answerStartedAt) / 1000) : 0;
   els.recordDot.classList.remove("live");
+  updateQuestionPracticeProgress(state.current?.text, { increment: true });
   const isLastQuestion = state.mockIndex >= state.mockQuestions.length - 1;
   if (!isLastQuestion && ["recording", "paused"].includes(state.mediaRecorder?.state)) {
     state.mediaRecorder.requestData?.();
@@ -1398,6 +1554,7 @@ function saveAttempt(audioSrc = state.lastAudioDataUrl || "", questionText = sta
   };
   state.questionAttempts[key] = [...attempts, item];
   localStorage.setItem("questionAttempts", JSON.stringify(state.questionAttempts));
+  updateQuestionPracticeProgress(questionText, { increment: true });
   renderAttempts();
   syncAttemptToCloud(questionText, item);
 }
@@ -1423,8 +1580,68 @@ function renderAttempts() {
       </div>
       ${item.audioSrc ? `<audio controls src="${item.audioSrc}"></audio>` : `<p class="empty-audio">这次没有保存到录音。</p>`}
       <p class="readonly-text">${item.transcript || "无文字稿"}</p>
+      ${item.feedback_text ? `
+        <div class="imported-feedback">
+          <strong>ChatGPT 点评</strong>
+          <p>${escapeHtml(item.feedback_text)}</p>
+          <span>${escapeHtml(item.feedback_created_at || "")}</span>
+        </div>
+      ` : ""}
     </article>
   `).join("") || `<div class="detail-block"><h3>还没有作答记录</h3><p>每次结束答题后，会在这里保存对应录音和文字稿。</p></div>`;
+}
+
+function importChatGPTFeedback() {
+  const text = els.chatgptFeedbackInput?.value.trim() || "";
+  if (!text) {
+    if (els.importFeedbackStatus) els.importFeedbackStatus.textContent = "请先粘贴点评内容";
+    return;
+  }
+  const createdAt = new Date().toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const key = attemptKey();
+  const attempts = state.questionAttempts[key] || [];
+  let targetAttempts = attempts;
+  if (!targetAttempts.length) {
+    targetAttempts = [{
+      id: `attempt-${Date.now()}`,
+      name: "1",
+      time: createdAt,
+      audioSrc: state.lastAudioDataUrl || "",
+      transcript: paragraphizeTranscript(els.transcript.value.trim()),
+      seconds: state.answerSeconds || 0
+    }];
+  }
+  const lastIndex = targetAttempts.length - 1;
+  targetAttempts[lastIndex] = {
+    ...targetAttempts[lastIndex],
+    feedback_text: text,
+    feedback_source: "chatgpt_import",
+    feedback_created_at: createdAt
+  };
+  state.questionAttempts[key] = targetAttempts;
+  localStorage.setItem("questionAttempts", JSON.stringify(state.questionAttempts));
+
+  const matchesCurrentQuestion = (record) => record?.question === state.current?.text
+    || (record?.childQuestions || []).some((child) => child.question === state.current?.text);
+  const record = state.history.find((item) => item.id === state.lastSavedRecordId && matchesCurrentQuestion(item))
+    || state.history.find(matchesCurrentQuestion);
+  if (record) {
+    record.feedback_text = text;
+    record.feedback_source = "chatgpt_import";
+    record.feedback_created_at = createdAt;
+    localStorage.setItem("interviewHistory", JSON.stringify(state.history));
+    syncRecordToCloud(record);
+  }
+  els.chatgptFeedbackInput.value = "";
+  if (els.importFeedbackStatus) {
+    els.importFeedbackStatus.textContent = "点评已导入";
+    setTimeout(() => {
+      if (els.importFeedbackStatus.textContent === "点评已导入") els.importFeedbackStatus.textContent = "";
+    }, 1600);
+  }
+  renderAttempts();
+  renderHistory();
+  if (state.activePage === "review") renderReviewPage();
 }
 
 function getRecorderMimeType() {
@@ -1968,19 +2185,21 @@ function inferSubject(q) {
 }
 
 function renderFeedback(analysis) {
+  if (!els.scoreTitle || !els.feedback) return;
   els.scoreTitle.textContent = `本次建议分：${analysis.total}/100`;
   const labels = analysis.rubric.scoreLabels;
   els.scoreLabels.forEach((label, index) => {
     label.textContent = labels[index] || label.textContent;
   });
-  els.scores.structure.textContent = analysis.scores.structure;
-  els.scores.content.textContent = analysis.scores.content;
-  els.scores.expression.textContent = analysis.scores.expression;
-  els.scores.time.textContent = analysis.scores.time;
+  if (els.scores.structure) els.scores.structure.textContent = analysis.scores.structure;
+  if (els.scores.content) els.scores.content.textContent = analysis.scores.content;
+  if (els.scores.expression) els.scores.expression.textContent = analysis.scores.expression;
+  if (els.scores.time) els.scores.time.textContent = analysis.scores.time;
   els.feedback.innerHTML = "";
 }
 
 function clearFeedback() {
+  if (!els.scoreTitle || !els.feedback) return;
   const labels = focusRubrics[els.focus.value]?.scoreLabels || ["结构", "内容", "表达", "时间"];
   els.scoreTitle.textContent = "完成一次答题后生成点评";
   state.reviewedTranscript = "";
@@ -1995,6 +2214,7 @@ function clearFeedback() {
 }
 
 function renderFrameworkHint() {
+  if (!els.feedback) return;
   const q = state.current || {};
   const framework = categoryFrameworks[q.category] || categoryFrameworks.综合分析;
   els.feedback.innerHTML = `
@@ -2009,6 +2229,7 @@ function renderFrameworkHint() {
 }
 
 function markFeedbackStale() {
+  if (!els.scoreTitle || !els.feedback) return;
   const currentText = dedupeTranscript(els.transcript.value.trim());
   if (!state.reviewedTranscript && !state.reviewedQuestionText) return;
   if (currentText === state.reviewedTranscript && state.current?.text === state.reviewedQuestionText) return;
@@ -2076,6 +2297,11 @@ function saveHistory(analysis) {
   state.lastSavedRecordId = item.id;
   state.history = [item, ...state.history].slice(0, 20);
   localStorage.setItem("interviewHistory", JSON.stringify(state.history));
+  if (childQuestions.length) {
+    childQuestions.forEach((child) => updateQuestionPracticeProgress(child.question, { score: child.score, increment: false }));
+  } else {
+    updateQuestionPracticeProgress(item.question, { score: item.score, increment: false });
+  }
   renderHistory();
   renderMockHistory();
   renderDashboard();
@@ -2085,6 +2311,7 @@ function saveHistory(analysis) {
 }
 
 function renderHistory() {
+  if (!els.history) return;
   if (!state.history.length) {
     els.history.innerHTML = `<div class="history-item"><strong>暂无记录</strong><p>完成一次答题后，这里会记录题型、分数、用时和答案。</p></div>`;
     return;
@@ -2101,7 +2328,7 @@ function renderHistory() {
 function renderMockHistory() {
   if (!els.mockHistory) return;
   const mockItems = state.history.filter((item) => item.mode === "mock");
-  els.mockHistoryCount.textContent = mockItems.length ? `${mockItems.length} 条` : "暂无";
+  if (els.mockHistoryCount) els.mockHistoryCount.textContent = mockItems.length ? `${mockItems.length} 条` : "暂无";
   els.mockHistory.innerHTML = mockItems.map((item) => `
     <button class="history-button" type="button" data-history-id="${item.id}">
       <strong>${item.score} 分 · ${formatTime(item.actualSeconds || item.answerSeconds || 0)}</strong>
@@ -2268,6 +2495,15 @@ function renderSavedFeedback(item) {
       <h3>我的复盘</h3>
       ${renderReviewNotes(item.reviewNotes)}
     </div>
+    ${item.feedback_text ? `
+      <div>
+        <h3>ChatGPT 点评导入</h3>
+        <div class="detail-block">
+          <p class="readonly-text">${escapeHtml(item.feedback_text)}</p>
+          <p class="helper-text">${escapeHtml(item.feedback_created_at || "")} · ${escapeHtml(item.feedback_source || "chatgpt_import")}</p>
+        </div>
+      </div>
+    ` : ""}
   `;
 }
 
@@ -2277,6 +2513,7 @@ function renderReviewNotes(notes = emptyReviewNotes()) {
 }
 
 function renderSkills() {
+  if (!els.skillList) return;
   const base = { 结构: 62, 内容: 56, 表达: 60, 时间: 64, 岗位匹配: 58 };
   state.history.forEach((item) => {
     const boost = Math.max(0, item.score - 60) / 8;
@@ -2310,23 +2547,21 @@ function renderQuestionBank() {
         const latestScore = scoreForQuestion(latest, q.text);
         const manual = getManualQuestionStatus(q.text);
         const statusValue = manual?.status || "auto";
-        const scoreValue = manual?.score ?? "";
+        const scoreValue = manual?.score ?? manual?.last_score ?? "";
         const statusText = manual?.status === "done" ? "手动已练" : manual?.status === "todo" ? "手动未练" : practiced ? "已练习" : "未练习";
         const scoreText = practiced && latestScore !== undefined && latestScore !== "" ? `上次 ${latestScore} 分` : practiced ? "已练习" : "暂无分数";
         return `
-          <article class="question-card">
-            <div class="badge-row">
+          <article class="question-card compact-question-card">
+            <div class="badge-row compact-badges">
               <span class="badge">${q.bank === "real" ? "真题训练" : q.bank === "professional" ? "专业题" : q.bank === "custom" ? "自建题" : "模拟/专项"}</span>
               <span class="badge">${q.category}</span>
-              <span class="badge">${q.difficulty}</span>
               <span class="badge ${practiced ? "done" : "todo"}">${statusText}</span>
               <span class="badge">${scoreText}</span>
             </div>
             <h3>${q.text}</h3>
             <div class="mini-meta">${q.cues.map((cue) => `<span>${cue}</span>`).join("")}</div>
-            <div class="bank-card-actions">
+            <div class="bank-card-actions compact-actions">
               <button class="secondary bank-load-btn" type="button" data-question-bank-index="${index}">练这题</button>
-              <button class="danger bank-delete-btn" type="button" data-question-delete-index="${index}">删除题目</button>
               <label>
                 <span>状态</span>
                 <select data-manual-status="${index}">
@@ -2339,7 +2574,8 @@ function renderQuestionBank() {
                 <span>分数</span>
                 <input data-manual-score="${index}" type="number" min="0" max="100" placeholder="可选" value="${scoreValue}">
               </label>
-              <button class="ghost bank-save-status-btn" type="button" data-manual-save="${index}">保存状态</button>
+              <span class="autosave-hint" data-save-hint="${index}"></span>
+              <button class="danger bank-delete-btn" type="button" data-question-delete-index="${index}">删除题目</button>
             </div>
           </article>
         `;
@@ -2382,11 +2618,26 @@ function filterQuestionBank(all) {
 
 function findLatestPractice(questionText) {
   const manual = getManualQuestionStatus(questionText);
-  if (manual?.status === "todo") return null;
-  if (manual?.status === "done") {
-    return { question: questionText, score: manual.score, manual: true };
+  const historyMatch = state.history.find((item) => item.question === questionText || (item.childQuestions || []).some((child) => child.question === questionText));
+  const historyTime = historyMatch ? timestampFromRecord(historyMatch) : 0;
+  const manualTime = Number(manual?.last_practiced_at || manual?.updatedAt || 0);
+  if (manual?.status === "todo" && manualTime >= historyTime) return null;
+  if (manual?.status === "done" && manualTime >= historyTime) {
+    return {
+      question: questionText,
+      score: manual.last_score ?? manual.score,
+      manual: true,
+      timestamp: manualTime,
+      practice_count: manual.practice_count || 1
+    };
   }
-  return state.history.find((item) => item.question === questionText || (item.childQuestions || []).some((child) => child.question === questionText));
+  return historyMatch || (manual?.status === "done" ? {
+    question: questionText,
+    score: manual.last_score ?? manual.score,
+    manual: true,
+    timestamp: manualTime,
+    practice_count: manual.practice_count || 1
+  } : null);
 }
 
 function scoreForQuestion(item, questionText) {
@@ -2400,22 +2651,68 @@ function getManualQuestionStatus(questionText) {
   return state.manualQuestionStatus[questionText] || null;
 }
 
-function saveManualQuestionStatus(index) {
+function persistManualQuestionStatus(questionText, value) {
+  if (!questionText) return;
+  if (value && value.status !== "auto") {
+    state.manualQuestionStatus[questionText] = value;
+  } else {
+    delete state.manualQuestionStatus[questionText];
+  }
+  localStorage.setItem("manualQuestionStatus", JSON.stringify(state.manualQuestionStatus));
+  syncStatusToCloud(questionText, state.manualQuestionStatus[questionText] || { status: "auto", score: "", updatedAt: Date.now() });
+}
+
+function updateQuestionPracticeProgress(questionText, { score = "", increment = true } = {}) {
+  if (!questionText) return;
+  const previous = state.manualQuestionStatus[questionText] || {};
+  const now = Date.now();
+  const recentlyUpdated = previous.last_practiced_at && now - Number(previous.last_practiced_at) < 3000;
+  const nextScore = score === "" || score === undefined || score === null
+    ? (previous.last_score ?? previous.score ?? "")
+    : clamp(Number(score), 0, 100);
+  const next = {
+    ...previous,
+    status: "done",
+    score: nextScore,
+    last_score: nextScore,
+    last_practiced_at: now,
+    practice_count: Math.max(1, Number(previous.practice_count || 0) + (increment && !recentlyUpdated ? 1 : 0)),
+    updatedAt: now
+  };
+  persistManualQuestionStatus(questionText, next);
+  renderCurrentPracticeStatus();
+  if (state.activePage === "bank") renderQuestionBank();
+  if (state.activePage === "dashboard") renderDashboard();
+}
+
+function saveManualQuestionStatus(index, options = {}) {
   const q = getAllQuestions()[index];
   if (!q) return;
   const status = els.questionBankContent.querySelector(`[data-manual-status="${index}"]`)?.value || "auto";
   const scoreNode = els.questionBankContent.querySelector(`[data-manual-score="${index}"]`);
   const rawScore = scoreNode?.value.trim() || "";
   const score = rawScore === "" ? "" : clamp(Number(rawScore), 0, 100);
-  if (status === "auto") {
-    delete state.manualQuestionStatus[q.text];
-  } else {
-    state.manualQuestionStatus[q.text] = { status, score, updatedAt: Date.now() };
-  }
-  localStorage.setItem("manualQuestionStatus", JSON.stringify(state.manualQuestionStatus));
-  renderQuestionBank();
+  const nextStatus = status === "auto" && score !== "" ? "done" : status;
+  const previous = state.manualQuestionStatus[q.text] || {};
+  const value = nextStatus === "auto" ? null : {
+    ...previous,
+    status: nextStatus,
+    score,
+    last_score: score === "" ? previous.last_score : score,
+    last_practiced_at: nextStatus === "done" ? (previous.last_practiced_at || Date.now()) : previous.last_practiced_at,
+    practice_count: previous.practice_count || (nextStatus === "done" ? 1 : 0),
+    updatedAt: Date.now()
+  };
+  persistManualQuestionStatus(q.text, value || { status: "auto" });
   renderCurrentPracticeStatus();
-  syncStatusToCloud(q.text, state.manualQuestionStatus[q.text] || { status: "auto", score: "", updatedAt: Date.now() });
+  const hint = els.questionBankContent.querySelector(`[data-save-hint="${index}"]`);
+  if (hint) {
+    hint.textContent = "已保存";
+    setTimeout(() => {
+      if (hint.textContent === "已保存") hint.textContent = "";
+    }, 1200);
+  }
+  if (options.render !== false) renderQuestionBank();
 }
 
 function addCustomQuestion(event) {
@@ -2442,6 +2739,8 @@ function addCustomQuestion(event) {
   localStorage.setItem("customQuestions", JSON.stringify(state.customQuestions));
   localStorage.setItem("deletedQuestionTexts", JSON.stringify(state.deletedQuestionTexts));
   els.addQuestionForm.reset();
+  if (els.addQuestionPanel) els.addQuestionPanel.hidden = true;
+  if (els.toggleAddQuestionBtn) els.toggleAddQuestionBtn.textContent = "新增题目";
   renderQuestionBank();
   syncCustomQuestionToCloud(question);
 }
@@ -2464,6 +2763,7 @@ function deleteQuestionFromBank(index) {
 }
 
 function getCurrentDisplayedScore() {
+  if (!els.scoreTitle) return "";
   const match = els.scoreTitle.textContent.match(/(\d+)\/100/);
   return match ? Number(match[1]) : "";
 }
@@ -2471,11 +2771,19 @@ function getCurrentDisplayedScore() {
 function setCurrentPracticeStatus(status) {
   if (!state.current) return;
   const score = status === "done" ? getCurrentDisplayedScore() : "";
-  state.manualQuestionStatus[state.current.text] = { status, score, updatedAt: Date.now() };
-  localStorage.setItem("manualQuestionStatus", JSON.stringify(state.manualQuestionStatus));
+  const previous = state.manualQuestionStatus[state.current.text] || {};
+  const value = {
+    ...previous,
+    status,
+    score,
+    last_score: score === "" ? previous.last_score : score,
+    last_practiced_at: status === "done" ? (previous.last_practiced_at || Date.now()) : previous.last_practiced_at,
+    practice_count: previous.practice_count || (status === "done" ? 1 : 0),
+    updatedAt: Date.now()
+  };
+  persistManualQuestionStatus(state.current.text, value);
   renderCurrentPracticeStatus();
   renderQuestionBank();
-  syncStatusToCloud(state.current.text, state.manualQuestionStatus[state.current.text]);
   const oldText = status === "done" ? "标为已练" : "标为未练";
   const button = status === "done" ? els.markCurrentDoneBtn : els.markCurrentTodoBtn;
   button.textContent = "已同步";
@@ -2754,7 +3062,7 @@ function practiceRecordRowForSupabase(user, record) {
     transcript: record.transcript || "",
     score: Number.isFinite(Number(record.score)) ? Number(record.score) : null,
     status: "completed",
-    review_note: reviewNoteToText(record.reviewNotes),
+    review_note: [reviewNoteToText(record.reviewNotes), record.feedback_text ? `ChatGPT点评：${record.feedback_text}` : ""].filter(Boolean).join("\n\n"),
     practiced_at: new Date().toISOString()
   };
 }
@@ -2768,7 +3076,9 @@ function manualStatusRowForSupabase(user, question, value = {}) {
     question_type: "",
     answer_text: "",
     transcript: "",
-    score: value.score === "" || value.score === undefined ? null : Number(value.score),
+    score: value.last_score === "" || value.last_score === undefined
+      ? (value.score === "" || value.score === undefined ? null : Number(value.score))
+      : Number(value.last_score),
     status: value.status || "done",
     review_note: "",
     practiced_at: value.updatedAt ? new Date(value.updatedAt).toISOString() : new Date().toISOString()
@@ -3298,7 +3608,7 @@ els.navButtons.forEach((button) => button.addEventListener("click", () => {
 }));
 els.pageLinks.forEach((button) => button.addEventListener("click", () => setPage(button.dataset.pageLink)));
 document.querySelectorAll("[data-dashboard-start]").forEach((button) => button.addEventListener("click", openRecommendedPractice));
-els.continuePracticeBtn.addEventListener("click", () => {
+els.continuePracticeBtn?.addEventListener("click", () => {
   const latest = state.history[0];
   if (!latest) {
     openRecommendedPractice();
@@ -3335,8 +3645,9 @@ els.questionText.addEventListener("click", (event) => {
   const card = event.target.closest("[data-mock-question-index]");
   if (card) switchMockQuestion(Number(card.dataset.mockQuestionIndex));
 });
-els.reviewBtn.addEventListener("click", reviewAnswer);
-els.chatgptPromptBtn.addEventListener("click", copyChatGPTPrompt);
+els.reviewBtn?.addEventListener("click", reviewAnswer);
+els.chatgptPromptBtn?.addEventListener("click", copyChatGPTPrompt);
+els.importFeedbackBtn?.addEventListener("click", importChatGPTFeedback);
 els.micTestBtn.addEventListener("click", testMicrophone);
 els.markCurrentDoneBtn.addEventListener("click", () => setCurrentPracticeStatus("done"));
 els.markCurrentTodoBtn.addEventListener("click", () => setCurrentPracticeStatus("todo"));
@@ -3368,11 +3679,11 @@ els.signOutBtn.addEventListener("click", signOut);
 els.migrateCloudBtn.addEventListener("click", migrateLocalDataToCloud);
 els.syncCloudBtn.addEventListener("click", syncCloudDataToLocal);
 els.testCloudWriteBtn.addEventListener("click", testCloudWrite);
-els.history.addEventListener("click", (event) => {
+els.history?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-history-id]");
   if (button) openHistoryDetail(button.dataset.historyId);
 });
-els.mockHistory.addEventListener("click", (event) => {
+els.mockHistory?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-history-id]");
   if (button) openHistoryDetail(button.dataset.historyId);
 });
@@ -3381,7 +3692,12 @@ els.attemptList.addEventListener("click", (event) => {
   if (button) deleteAttempt(button.dataset.attemptId);
 });
 els.closeHistoryDialogBtn.addEventListener("click", () => els.historyDialog.close());
-els.questionBankBtn.addEventListener("click", () => setPage("bank"));
+els.questionBankBtn?.addEventListener("click", () => setPage("bank"));
+els.toggleAddQuestionBtn?.addEventListener("click", () => {
+  if (!els.addQuestionPanel) return;
+  els.addQuestionPanel.hidden = !els.addQuestionPanel.hidden;
+  els.toggleAddQuestionBtn.textContent = els.addQuestionPanel.hidden ? "新增题目" : "收起新增";
+});
 els.addQuestionForm.addEventListener("submit", addCustomQuestion);
 [
   els.bankSearch,
@@ -3406,15 +3722,23 @@ els.reviewRecordsList.addEventListener("click", (event) => {
   if (historyButton) openHistoryDetail(historyButton.dataset.historyId);
 });
 els.questionBankContent.addEventListener("click", (event) => {
-  const saveButton = event.target.closest("[data-manual-save]");
-  if (saveButton) {
-    saveManualQuestionStatus(Number(saveButton.dataset.manualSave));
-    return;
-  }
   const loadButton = event.target.closest("[data-question-bank-index]");
   if (loadButton) loadQuestionFromBank(Number(loadButton.dataset.questionBankIndex));
   const deleteButton = event.target.closest("[data-question-delete-index]");
   if (deleteButton) deleteQuestionFromBank(Number(deleteButton.dataset.questionDeleteIndex));
+});
+els.questionBankContent.addEventListener("change", (event) => {
+  const status = event.target.closest("[data-manual-status]");
+  if (status) saveManualQuestionStatus(Number(status.dataset.manualStatus));
+});
+els.questionBankContent.addEventListener("input", (event) => {
+  const score = event.target.closest("[data-manual-score]");
+  if (!score) return;
+  const index = Number(score.dataset.manualScore);
+  clearTimeout(state.bankSaveTimers[index]);
+  const hint = els.questionBankContent.querySelector(`[data-save-hint="${index}"]`);
+  if (hint) hint.textContent = "保存中...";
+  state.bankSaveTimers[index] = setTimeout(() => saveManualQuestionStatus(index, { render: false }), 500);
 });
 setPage("dashboard");
 setMode("mock");

@@ -1953,3 +1953,267 @@ body[data-mode="mock"] .practice-controls {
     padding: 12px;
   }
 }
+
+/* Product cleanup: compact review dashboard, practice import, and question bank */
+body {
+  font-size: 14px;
+}
+
+.page-header.compact-header {
+  margin-bottom: 14px;
+}
+
+.page-header h2 {
+  font-size: clamp(22px, 2vw, 28px);
+}
+
+.panel {
+  padding: 18px;
+  box-shadow: 0 10px 28px rgba(20, 46, 36, 0.05);
+}
+
+.section-title.slim-title {
+  margin-bottom: 12px;
+}
+
+.section-title.slim-title h3 {
+  font-size: 17px;
+}
+
+.review-board-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(260px, 0.9fr);
+  gap: 14px;
+}
+
+.monthly-heat-panel {
+  grid-column: span 2;
+}
+
+.today-practice-list {
+  display: grid;
+  gap: 8px;
+}
+
+.today-practice-item,
+.compact-empty {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fbfdfb;
+}
+
+.today-practice-item strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.today-practice-item span,
+.compact-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.weekly-heatmap {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.week-cell {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.heat-cell {
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--ink);
+  background: #edf3ee;
+}
+
+.week-cell .heat-cell {
+  width: 34px;
+  height: 30px;
+  font-size: 13px;
+}
+
+.monthly-heatmap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(24px, 1fr));
+  gap: 6px;
+}
+
+.month-cell {
+  min-width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+.level-0 { background: #edf3ee; color: #8a978f; }
+.level-1 { background: #d6eee8; }
+.level-2 { background: #a8dacf; }
+.level-3 { background: #62b6a7; color: white; }
+.level-4 { background: var(--green); color: white; }
+
+.type-distribution {
+  display: grid;
+  gap: 10px;
+}
+
+.type-row {
+  display: grid;
+  grid-template-columns: 74px 1fr 28px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.type-row div {
+  height: 8px;
+  border-radius: 999px;
+  background: #edf3ee;
+  overflow: hidden;
+}
+
+.type-row b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.question-band #questionText,
+#questionText {
+  font-size: 18px;
+  line-height: 1.58;
+}
+
+.question-card h3 {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.compact-question-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.compact-badges {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.compact-badges .badge,
+.mini-meta span,
+.badge {
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
+.compact-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.compact-actions button,
+.compact-actions select,
+.compact-actions input {
+  min-height: 34px;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.compact-actions label {
+  display: inline-grid;
+  grid-template-columns: auto 92px;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.bank-delete-btn {
+  background: #fff3f2;
+  color: #a54842;
+  border-color: #f2cbc7;
+}
+
+.autosave-hint,
+.save-hint {
+  min-width: 44px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.add-question-panel[hidden] {
+  display: none;
+}
+
+.chatgpt-import-panel {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: #fbfdfb;
+}
+
+.chatgpt-import-panel h2,
+.review-notes-panel h2,
+.attempts-panel h2 {
+  font-size: 17px;
+}
+
+.chatgpt-import-panel textarea {
+  min-height: 150px;
+}
+
+.import-feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.imported-feedback {
+  border-left: 3px solid var(--green);
+  background: #f1fbf8;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.imported-feedback p {
+  white-space: pre-wrap;
+  margin: 6px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+button,
+select,
+input,
+textarea {
+  font-size: 14px;
+}
+
+button.primary,
+button.secondary,
+button.ghost {
+  min-height: 38px;
+}
+
+@media (max-width: 980px) {
+  .review-board-grid,
+  .monthly-heat-panel {
+    grid-template-columns: 1fr;
+    grid-column: auto;
+  }
+}
