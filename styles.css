@@ -2046,8 +2046,10 @@ body {
 
 .monthly-heatmap {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(24px, 1fr));
+  grid-template-columns: repeat(var(--days-in-month, 31), minmax(24px, 1fr));
   gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .month-cell {
@@ -2083,6 +2085,62 @@ body {
 }
 
 .type-row b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.question-coverage-panel {
+  align-self: start;
+}
+
+.question-overview {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.overview-stat {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdfb;
+}
+
+.overview-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.overview-stat strong {
+  font-size: 22px;
+}
+
+.category-coverage {
+  display: grid;
+  gap: 10px;
+}
+
+.coverage-row {
+  display: grid;
+  grid-template-columns: 74px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.coverage-row div {
+  height: 8px;
+  border-radius: 999px;
+  background: #edf3ee;
+  overflow: hidden;
+}
+
+.coverage-row b {
   display: block;
   height: 100%;
   border-radius: inherit;
@@ -2188,6 +2246,13 @@ body {
   padding: 10px 12px;
   border-radius: 8px;
   margin-top: 10px;
+}
+
+.imported-feedback em {
+  float: right;
+  font-style: normal;
+  color: var(--green);
+  font-weight: 800;
 }
 
 .imported-feedback p {

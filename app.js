@@ -539,6 +539,8 @@ const els = {
   weeklyHeatmap: document.querySelector("#weeklyHeatmap"),
   monthlyHeatmap: document.querySelector("#monthlyHeatmap"),
   typeDistribution: document.querySelector("#typeDistribution"),
+  questionOverview: document.querySelector("#questionOverview"),
+  categoryCoverage: document.querySelector("#categoryCoverage"),
   lastSyncTime: document.querySelector("#lastSyncTime"),
   reviewCategoryFilter: document.querySelector("#reviewCategoryFilter"),
   reviewScoreFilter: document.querySelector("#reviewScoreFilter"),
@@ -696,6 +698,7 @@ function renderDashboard() {
   renderWeeklyHeatmap(rows);
   renderMonthlyHeatmap(rows);
   renderTypeDistribution(rows);
+  renderQuestionCoverage();
   renderSyncSummary();
 }
 
@@ -835,6 +838,7 @@ function renderMonthlyHeatmap(rows) {
     return { key, day: index + 1, count: counts[key] || 0 };
   });
   const max = Math.max(1, ...cells.map((item) => item.count));
+  els.monthlyHeatmap.style.setProperty("--days-in-month", daysInMonth);
   els.monthlyHeatmap.innerHTML = cells.map((item) => `
     <span class="month-cell heat-cell level-${heatLevel(item.count, max)}" title="${item.key} · 完成 ${item.count} 题">${item.day}</span>
   `).join("");
@@ -864,6 +868,51 @@ function renderTypeDistribution(rows) {
       <strong>${count}</strong>
     </div>
   `).join("");
+}
+
+function getQuestionCoverageStats() {
+  const all = getAllQuestions();
+  const byCategory = {};
+  all.forEach((q) => {
+    const category = q.category || "未分类";
+    if (!byCategory[category]) byCategory[category] = { total: 0, practiced: 0 };
+    byCategory[category].total += 1;
+    if (findLatestPractice(q.text)) byCategory[category].practiced += 1;
+  });
+  const total = all.length;
+  const practiced = all.filter((q) => findLatestPractice(q.text)).length;
+  return { total, practiced, byCategory };
+}
+
+function renderQuestionCoverage() {
+  if (!els.questionOverview || !els.categoryCoverage) return;
+  const { total, practiced, byCategory } = getQuestionCoverageStats();
+  const percent = total ? Math.round((practiced / total) * 100) : 0;
+  els.questionOverview.innerHTML = `
+    <div class="overview-stat">
+      <span>全部题目</span>
+      <strong>${total}</strong>
+    </div>
+    <div class="overview-stat">
+      <span>已练习</span>
+      <strong>${practiced}</strong>
+    </div>
+    <div class="overview-stat">
+      <span>覆盖率</span>
+      <strong>${percent}%</strong>
+    </div>
+  `;
+  const entries = Object.entries(byCategory).sort((a, b) => b[1].total - a[1].total);
+  els.categoryCoverage.innerHTML = entries.map(([category, stats]) => {
+    const width = stats.total ? Math.max(4, (stats.practiced / stats.total) * 100) : 0;
+    return `
+      <div class="coverage-row">
+        <span>${escapeHtml(category)}</span>
+        <div><b style="width:${width}%"></b></div>
+        <strong>${stats.practiced}/${stats.total}</strong>
+      </div>
+    `;
+  }).join("") || `<div class="empty-state compact-empty">题库暂无题目</div>`;
 }
 
 function getRecommendedQuestion() {
@@ -1583,12 +1632,44 @@ function renderAttempts() {
       ${item.feedback_text ? `
         <div class="imported-feedback">
           <strong>ChatGPT 点评</strong>
+          ${item.score !== "" && item.score !== undefined ? `<em>${item.score} 分</em>` : ""}
           <p>${escapeHtml(item.feedback_text)}</p>
           <span>${escapeHtml(item.feedback_created_at || "")}</span>
         </div>
       ` : ""}
     </article>
   `).join("") || `<div class="detail-block"><h3>还没有作答记录</h3><p>每次结束答题后，会在这里保存对应录音和文字稿。</p></div>`;
+}
+
+function extractFeedbackScore(text = "") {
+  const normalized = String(text).replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
+  const patterns = [
+    /(?:综合评分|总分|评分|建议分|得分|我给你(?:这版)?打)\s*[：:是为约大概]*\s*(\d{1,3})\s*(?:分|\/\s*100)?/i,
+    /(\d{1,3})\s*\/\s*100/,
+    /(\d{1,3})\s*分(?:左右)?/
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (!match) continue;
+    const score = Number(match[1]);
+    if (Number.isFinite(score) && score >= 0 && score <= 100) return score;
+  }
+  return "";
+}
+
+function applyImportedFeedbackScore(score, record) {
+  if (score === "" || score === undefined || score === null || !state.current?.text) return;
+  updateQuestionPracticeProgress(state.current.text, { score, increment: false });
+  if (record) {
+    if (Array.isArray(record.childQuestions) && record.childQuestions.length) {
+      const child = record.childQuestions.find((item) => item.question === state.current.text);
+      if (child) child.score = score;
+      const scores = record.childQuestions.map((item) => Number(item.score)).filter(Number.isFinite);
+      if (scores.length) record.score = Math.round(scores.reduce((sum, item) => sum + item, 0) / scores.length);
+    } else {
+      record.score = score;
+    }
+  }
 }
 
 function importChatGPTFeedback() {
@@ -1598,6 +1679,7 @@ function importChatGPTFeedback() {
     return;
   }
   const createdAt = new Date().toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const importedScore = extractFeedbackScore(text);
   const key = attemptKey();
   const attempts = state.questionAttempts[key] || [];
   let targetAttempts = attempts;
@@ -1616,7 +1698,8 @@ function importChatGPTFeedback() {
     ...targetAttempts[lastIndex],
     feedback_text: text,
     feedback_source: "chatgpt_import",
-    feedback_created_at: createdAt
+    feedback_created_at: createdAt,
+    score: importedScore
   };
   state.questionAttempts[key] = targetAttempts;
   localStorage.setItem("questionAttempts", JSON.stringify(state.questionAttempts));
@@ -1626,21 +1709,27 @@ function importChatGPTFeedback() {
   const record = state.history.find((item) => item.id === state.lastSavedRecordId && matchesCurrentQuestion(item))
     || state.history.find(matchesCurrentQuestion);
   if (record) {
+    applyImportedFeedbackScore(importedScore, record);
     record.feedback_text = text;
     record.feedback_source = "chatgpt_import";
     record.feedback_created_at = createdAt;
     localStorage.setItem("interviewHistory", JSON.stringify(state.history));
     syncRecordToCloud(record);
+  } else {
+    applyImportedFeedbackScore(importedScore, null);
   }
   els.chatgptFeedbackInput.value = "";
   if (els.importFeedbackStatus) {
-    els.importFeedbackStatus.textContent = "点评已导入";
+    els.importFeedbackStatus.textContent = importedScore === "" ? "点评已导入" : `点评已导入，识别分数 ${importedScore}`;
     setTimeout(() => {
-      if (els.importFeedbackStatus.textContent === "点评已导入") els.importFeedbackStatus.textContent = "";
+      if (els.importFeedbackStatus.textContent.startsWith("点评已导入")) els.importFeedbackStatus.textContent = "";
     }, 1600);
   }
   renderAttempts();
   renderHistory();
+  renderDashboard();
+  renderQuestionBank();
+  renderCurrentPracticeStatus();
   if (state.activePage === "review") renderReviewPage();
 }
 
@@ -2243,22 +2332,28 @@ function markFeedbackStale() {
 function buildChatGPTPrompt() {
   const q = state.current;
   const transcript = els.transcript.value.trim();
+  const questionText = state.mode === "mock" && state.mockQuestions.length
+    ? state.mockQuestions.map((item, index) => `第${index + 1}题：${item.text}`).join("\n")
+    : q.text;
+  const answerText = state.mode === "mock"
+    ? (transcript || state.mockQuestions.map((_, index) => `${questionLabel(index)}：${state.mockTranscriptParts[index] || ""}`).join("\n\n"))
+    : transcript;
   return `题目：
-${q.text}
+${questionText}
 
 我的回答文字稿：
-${transcript || "（暂无文字稿）"}
+${answerText || "（暂无文字稿）"}
 
-请你帮忙打分和点评。`;
+请你帮忙打分和点评。请给出总分/100，并指出答得好的点、需要改进的点，以及一版符合我原思路的优化表达。`;
 }
 
 async function copyChatGPTPrompt() {
   const prompt = buildChatGPTPrompt();
   try {
     await navigator.clipboard.writeText(prompt);
-    els.chatgptPromptBtn.textContent = "已复制";
+    if (els.chatgptPromptBtn) els.chatgptPromptBtn.textContent = "已复制";
     setTimeout(() => {
-      els.chatgptPromptBtn.textContent = "复制给 ChatGPT";
+      if (els.chatgptPromptBtn) els.chatgptPromptBtn.textContent = "复制给 ChatGPT";
     }, 1400);
   } catch (error) {
     els.transcript.value = `${els.transcript.value}\n\n--- 复制给 ChatGPT 的提示词 ---\n${prompt}`;

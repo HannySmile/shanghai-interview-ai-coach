@@ -104,6 +104,17 @@
               </div>
               <div id="typeDistribution" class="type-distribution"></div>
             </article>
+
+            <article class="panel question-coverage-panel">
+              <div class="section-title slim-title">
+                <div>
+                  <p class="eyebrow">题库覆盖</p>
+                  <h3>题目练习进度</h3>
+                </div>
+              </div>
+              <div id="questionOverview" class="question-overview"></div>
+              <div id="categoryCoverage" class="category-coverage"></div>
+            </article>
           </section>
         </section>
 
@@ -260,6 +271,7 @@
                       <textarea id="chatgptFeedbackInput" placeholder="把题目、你的文字稿发给 ChatGPT 后，将它返回的打分、优点、问题和优化稿粘贴到这里。"></textarea>
                     </label>
                     <div class="import-feedback-actions">
+                      <button id="chatgptPromptBtn" class="secondary" type="button">复制给 ChatGPT</button>
                       <button id="importFeedbackBtn" class="primary" type="button">导入点评</button>
                       <span id="importFeedbackStatus" class="save-hint"></span>
                     </div>
@@ -468,6 +480,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./word-questions.js"></script>
     <script src="./professional-questions.js"></script>
-    <script src="./app.js?v=review-board-import-1"></script>
+    <script src="./app.js?v=dashboard-coverage-feedback-score-1"></script>
   </body>
 </html>
